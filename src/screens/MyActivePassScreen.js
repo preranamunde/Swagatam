@@ -195,7 +195,13 @@ const MyActivePassScreen = ({ navigation }) => {
       Alert.alert('Error', 'Pass data is not available');
       return;
     }
-    navigation.navigate('PassDetail', { passData: passItem });
+    
+    // Navigate to different screens based on active tab
+    if (activeTab === 'daily') {
+      navigation.navigate('TodayAppointmentDetail', { passData: passItem });
+    } else {
+      navigation.navigate('TemporaryPassDetail', { passData: passItem });
+    }
   };
 
   if (loading) {
@@ -217,7 +223,7 @@ const MyActivePassScreen = ({ navigation }) => {
       
       {/* Gradient Header */}
       <LinearGradient
-        colors={['#0A2463', '#1a3d7a']}
+        colors={['#3477eb', '#3477eb']}
         style={styles.headerGradient}
       >
         <View style={styles.header}>
@@ -343,7 +349,7 @@ const MyActivePassScreen = ({ navigation }) => {
                   >
                     {/* Left Side - Date Box */}
                     <LinearGradient
-                      colors={['#0A2463', '#1E3A8A']}
+                      colors={['#3477eb', '#3477eb']}
                       style={styles.dateBox}
                     >
                       <Text style={styles.dayText}>{appointment.day || 'N/A'}</Text>
@@ -443,7 +449,7 @@ const MyActivePassScreen = ({ navigation }) => {
                               <QRCode
                                 value={appointment.passNo}
                                 size={110}
-                                color="#0A2463"
+                                color="#3477eb"
                                 backgroundColor="white"
                               />
                             ) : (
@@ -580,7 +586,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.6)',
   },
   tabTextActive: {
-    color: '#0A2463',
+    color: '#3477eb',
   },
   badge: {
     backgroundColor: 'rgba(255,255,255,0.2)',
@@ -591,7 +597,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   badgeActive: {
-    backgroundColor: '#0A2463',
+    backgroundColor: '#3477eb',
   },
   badgeText: {
     fontSize: 10,
@@ -628,7 +634,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#0A2463',
+    color: '#3477eb',
     marginBottom: 8,
   },
   emptyDesc: {
@@ -641,7 +647,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    backgroundColor: '#0A2463',
+    backgroundColor: '#3477eb',
     paddingHorizontal: 22,
     paddingVertical: 12,
     borderRadius: 10,
@@ -660,7 +666,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#0A2463',
+    shadowColor: '#3477eb',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
@@ -819,8 +825,8 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   visitorPhoto: {
-    width: 130,
-    height: 140,
+    width: 150,
+    height: 170,
     borderRadius: 12,
     backgroundColor: '#F1F5F9',
     borderWidth: 3,

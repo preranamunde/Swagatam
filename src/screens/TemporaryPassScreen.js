@@ -13,11 +13,41 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
+import { Dropdown } from 'react-native-element-dropdown';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 const TemporaryPassScreen = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('details');
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Dropdown options
+  const designationOptions = [
+    { label: 'SELECT', value: 'SELECT' },
+    { label: 'SECRETARY', value: 'SECRETARY' },
+    { label: 'OTHER', value: 'OTHER' },
+    { label: 'HRM', value: 'HRM' },
+    { label: 'DC', value: 'DC' },
+    { label: 'DG POLICE', value: 'DG POLICE' },
+  ];
+
+  const organizationTypeOptions = [
+    { label: 'SELECT', value: 'SELECT' },
+    { label: 'Central Government', value: 'Central Government' },
+    { label: 'State Government', value: 'State Government' },
+    { label: 'Public Sector', value: 'Public Sector' },
+    { label: 'Autonomous Body', value: 'Autonomous Body' },
+    { label: 'Other', value: 'Other' },
+  ];
+
+  const reasonForPassOptions = [
+    { label: 'SELECT', value: 'SELECT' },
+    { label: 'Fresh Appointment', value: 'Fresh Appointment' },
+    { label: 'Pass Expired', value: 'Pass Expired' },
+    { label: 'Pass Lost', value: 'Pass Lost' },
+    { label: 'Transfer', value: 'Transfer' },
+    { label: 'Other', value: 'Other' },
+  ];
   
   // Category Tab States - Moved to component level
   const [category, setCategory] = useState('regular');
@@ -171,7 +201,7 @@ const TemporaryPassScreen = ({ navigation }) => {
       ? ['designation', 'parentMinDept', 'reasonForPass', 'organizationName', 'bhawanBuilding', 'reportingOfficer', 'divisionGroup']
       : ['designation', 'vendorName', 'vendorAddress', 'phone', 'workOrderNo', 'organizationName', 'bhawanBuilding', 'reportingOfficer', 'divisionGroup'];
     
-    const missingFields = requiredFields.filter(field => !formData[field]);
+    const missingFields = requiredFields.filter(field => !formData[field] || formData[field] === 'SELECT');
     
     if (missingFields.length > 0 || !formData.requestedPeriodFrom || !formData.requestedPeriodTo) {
       Alert.alert('Missing Information', 'Please fill all required fields marked with *');
@@ -298,6 +328,7 @@ const TemporaryPassScreen = ({ navigation }) => {
       <ScrollView 
         style={styles.tabContent}
         showsVerticalScrollIndicator={false}
+        nestedScrollEnabled={true}
       >
         <View style={styles.categoryContainer}>
           {/* Category Selection Header */}
@@ -331,38 +362,37 @@ const TemporaryPassScreen = ({ navigation }) => {
             </View>
 
             {/* Requested Pass Period */}
-         
-<View style={styles.periodRow}>
-  <Text style={styles.periodLabel}>Requested Pass Period*:</Text>
-  <View style={styles.dateInputs}>
-    <TouchableOpacity 
-      style={styles.dateInputWrapper}
-      onPress={showFromDatePicker}
-      activeOpacity={0.7}
-    >
-      <Text style={[
-        styles.dateInput,
-        formData.requestedPeriodFrom && styles.dateInputFilled
-      ]}>
-        {formData.requestedPeriodFrom || 'From Date'}
-      </Text>
-      <Text style={styles.calendarIcon}>📅</Text>
-    </TouchableOpacity>
-    <TouchableOpacity 
-      style={styles.dateInputWrapper}
-      onPress={showToDatePicker}
-      activeOpacity={0.7}
-    >
-      <Text style={[
-        styles.dateInput,
-        formData.requestedPeriodTo && styles.dateInputFilled
-      ]}>
-        {formData.requestedPeriodTo || 'To Date'}
-      </Text>
-      <Text style={styles.calendarIcon}>📅</Text>
-    </TouchableOpacity>
-  </View>
-</View>
+            <View style={styles.periodRow}>
+              <Text style={styles.periodLabel}>Requested Pass Period*:</Text>
+              <View style={styles.dateInputs}>
+                <TouchableOpacity 
+                  style={styles.dateInputWrapper}
+                  onPress={showFromDatePicker}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[
+                    styles.dateInput,
+                    formData.requestedPeriodFrom && styles.dateInputFilled
+                  ]}>
+                    {formData.requestedPeriodFrom || 'From Date'}
+                  </Text>
+                  <Text style={styles.calendarIcon}>📅</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.dateInputWrapper}
+                  onPress={showToDatePicker}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[
+                    styles.dateInput,
+                    formData.requestedPeriodTo && styles.dateInputFilled
+                  ]}>
+                    {formData.requestedPeriodTo || 'To Date'}
+                  </Text>
+                  <Text style={styles.calendarIcon}>📅</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
 
           {/* Form Fields Card */}
@@ -372,11 +402,30 @@ const TemporaryPassScreen = ({ navigation }) => {
               <>
                 <View style={styles.formRow}>
                   <Text style={styles.inputLabel}>Designation*:</Text>
-                  <TouchableOpacity style={styles.selectInput}>
-                    <Text style={styles.selectPlaceholder}>
-                      {formData.designation || 'SELECT'}
-                    </Text>
-                  </TouchableOpacity>
+                  <Dropdown
+                    style={styles.dropdown}
+                    placeholderStyle={styles.dropdownPlaceholder}
+                    selectedTextStyle={styles.dropdownSelectedText}
+                    iconStyle={styles.dropdownIcon}
+                    containerStyle={styles.dropdownContainer}
+                    data={designationOptions}
+                    maxHeight={300}
+                    labelField="label"
+                    valueField="value"
+                    placeholder="Select Designation"
+                    value={formData.designation}
+                    onChange={(item) => {
+                      updateFormData('designation', item.value);
+                    }}
+                    renderLeftIcon={() => (
+                      <Icon
+                        style={styles.dropdownLeftIcon}
+                        color="#64748B"
+                        name="briefcase"
+                        size={20}
+                      />
+                    )}
+                  />
                 </View>
 
                 <View style={styles.formRow}>
@@ -391,20 +440,58 @@ const TemporaryPassScreen = ({ navigation }) => {
 
                 <View style={styles.formRow}>
                   <Text style={styles.inputLabel}>Reason for Temporary Pass*:</Text>
-                  <TouchableOpacity style={styles.selectInput}>
-                    <Text style={styles.selectPlaceholder}>
-                      {formData.reasonForPass || '-- Select--'}
-                    </Text>
-                  </TouchableOpacity>
+                  <Dropdown
+                    style={styles.dropdown}
+                    placeholderStyle={styles.dropdownPlaceholder}
+                    selectedTextStyle={styles.dropdownSelectedText}
+                    iconStyle={styles.dropdownIcon}
+                    containerStyle={styles.dropdownContainer}
+                    data={reasonForPassOptions}
+                    maxHeight={300}
+                    labelField="label"
+                    valueField="value"
+                    placeholder="Select Reason"
+                    value={formData.reasonForPass}
+                    onChange={(item) => {
+                      updateFormData('reasonForPass', item.value);
+                    }}
+                    renderLeftIcon={() => (
+                      <Icon
+                        style={styles.dropdownLeftIcon}
+                        color="#64748B"
+                        name="note-text"
+                        size={20}
+                      />
+                    )}
+                  />
                 </View>
 
                 <View style={styles.formRow}>
                   <Text style={styles.inputLabel}>Organization Type:</Text>
-                  <TouchableOpacity style={styles.selectInput}>
-                    <Text style={styles.selectPlaceholder}>
-                      {formData.organizationType || 'SELECT'}
-                    </Text>
-                  </TouchableOpacity>
+                  <Dropdown
+                    style={styles.dropdown}
+                    placeholderStyle={styles.dropdownPlaceholder}
+                    selectedTextStyle={styles.dropdownSelectedText}
+                    iconStyle={styles.dropdownIcon}
+                    containerStyle={styles.dropdownContainer}
+                    data={organizationTypeOptions}
+                    maxHeight={300}
+                    labelField="label"
+                    valueField="value"
+                    placeholder="Select Organization Type"
+                    value={formData.organizationType}
+                    onChange={(item) => {
+                      updateFormData('organizationType', item.value);
+                    }}
+                    renderLeftIcon={() => (
+                      <Icon
+                        style={styles.dropdownLeftIcon}
+                        color="#64748B"
+                        name="domain"
+                        size={20}
+                      />
+                    )}
+                  />
                 </View>
 
                 <View style={styles.formRow}>
@@ -459,11 +546,30 @@ const TemporaryPassScreen = ({ navigation }) => {
               <>
                 <View style={styles.formRow}>
                   <Text style={styles.inputLabel}>Designation*:</Text>
-                  <TouchableOpacity style={styles.selectInput}>
-                    <Text style={styles.selectPlaceholder}>
-                      {formData.designation || 'SELECT'}
-                    </Text>
-                  </TouchableOpacity>
+                  <Dropdown
+                    style={styles.dropdown}
+                    placeholderStyle={styles.dropdownPlaceholder}
+                    selectedTextStyle={styles.dropdownSelectedText}
+                    iconStyle={styles.dropdownIcon}
+                    containerStyle={styles.dropdownContainer}
+                    data={designationOptions}
+                    maxHeight={300}
+                    labelField="label"
+                    valueField="value"
+                    placeholder="Select Designation"
+                    value={formData.designation}
+                    onChange={(item) => {
+                      updateFormData('designation', item.value);
+                    }}
+                    renderLeftIcon={() => (
+                      <Icon
+                        style={styles.dropdownLeftIcon}
+                        color="#64748B"
+                        name="briefcase"
+                        size={20}
+                      />
+                    )}
+                  />
                 </View>
 
                 <View style={styles.formRow}>
@@ -510,11 +616,30 @@ const TemporaryPassScreen = ({ navigation }) => {
 
                 <View style={styles.formRow}>
                   <Text style={styles.inputLabel}>Organization Type:</Text>
-                  <TouchableOpacity style={styles.selectInput}>
-                    <Text style={styles.selectPlaceholder}>
-                      {formData.organizationType || 'SELECT'}
-                    </Text>
-                  </TouchableOpacity>
+                  <Dropdown
+                    style={styles.dropdown}
+                    placeholderStyle={styles.dropdownPlaceholder}
+                    selectedTextStyle={styles.dropdownSelectedText}
+                    iconStyle={styles.dropdownIcon}
+                    containerStyle={styles.dropdownContainer}
+                    data={organizationTypeOptions}
+                    maxHeight={300}
+                    labelField="label"
+                    valueField="value"
+                    placeholder="Select Organization Type"
+                    value={formData.organizationType}
+                    onChange={(item) => {
+                      updateFormData('organizationType', item.value);
+                    }}
+                    renderLeftIcon={() => (
+                      <Icon
+                        style={styles.dropdownLeftIcon}
+                        color="#64748B"
+                        name="domain"
+                        size={20}
+                      />
+                    )}
+                  />
                 </View>
 
                 <View style={styles.formRow}>
@@ -902,7 +1027,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   header: {
-    backgroundColor: '#0A2463',
+    backgroundColor: '#3477eb',
     paddingTop: Platform.OS === 'ios' ? 50 : 40,
     paddingBottom: 20,
     paddingHorizontal: 16,
@@ -967,7 +1092,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   activeTab: {
-    borderBottomColor: '#0A2463',
+    borderBottomColor: '#3477eb',
   },
   tabText: {
     fontSize: 13,
@@ -976,7 +1101,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   activeTabText: {
-    color: '#0A2463',
+    color: '#3477eb',
     fontWeight: '700',
   },
   tabContent: {
@@ -1011,7 +1136,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: '#0A2463',
+    backgroundColor: '#3477eb',
   },
   cardTitle: {
     fontSize: 18,
@@ -1042,7 +1167,7 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 50,
     borderWidth: 4,
-    borderColor: '#0A2463',
+    borderColor: '#3477eb',
   },
   detailsGrid: {
     gap: 16,
@@ -1136,24 +1261,20 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   dateInputWrapper: {
-  flex: 1,
-  backgroundColor: '#FFFFFF',
-  borderRadius: 6,
-  borderWidth: 1,
-  borderColor: '#CBD5E1',
-  padding: 12,
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-},
-dateInputFilled: {
-  color: '#0F172A',
-  fontWeight: '600',
-},
-calendarIcon: {
-  fontSize: 16,
-  marginLeft: 8,
-},
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    padding: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  calendarIcon: {
+    fontSize: 16,
+    marginLeft: 8,
+  },
   dateInput: {
     fontSize: 14,
     color: '#94A3B8',
@@ -1204,6 +1325,42 @@ calendarIcon: {
     padding: 12,
     fontSize: 14,
     color: '#0F172A',
+  },
+  // Dropdown Styles (matching CreateAppointmentScreen)
+  dropdown: {
+    height: 50,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 16,
+  },
+  dropdownPlaceholder: {
+    fontSize: 15,
+    color: '#94A3B8',
+  },
+  dropdownSelectedText: {
+    fontSize: 15,
+    color: '#0F172A',
+  },
+  dropdownIcon: {
+    width: 20,
+    height: 20,
+    tintColor: '#64748B',
+  },
+  dropdownLeftIcon: {
+    marginRight: 10,
+  },
+  dropdownContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
   },
   gadgetsRow: {
     flexDirection: 'row',

@@ -7,15 +7,17 @@ import {
   StatusBar,
   Platform,
   TouchableOpacity,
+  Image,
 } from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Feather from 'react-native-vector-icons/Feather';
+import LinearGradient from 'react-native-linear-gradient';
 
 const AboutSwagatamScreen = ({ navigation }) => {
   const Section = ({ icon, title, children }) => (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <View style={styles.sectionIconBadge}>
-          <Text style={styles.sectionIcon}>{icon}</Text>
-        </View>
+        <Icon name={icon} size={20} color="#3477eb" style={styles.sectionIcon} />
         <Text style={styles.sectionTitle}>{title}</Text>
       </View>
       <View style={styles.sectionContent}>
@@ -33,16 +35,18 @@ const AboutSwagatamScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0A2463" />
+      <StatusBar barStyle="light-content" backgroundColor="#3477eb" />
       
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>About Swagatam</Text>
-        <View style={styles.headerRight} />
-      </View>
+      <LinearGradient colors={['#3477eb', '#3477eb']} style={styles.headerGradient}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Feather name="arrow-left" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>About Swagatam</Text>
+          <View style={styles.headerRight} />
+        </View>
+      </LinearGradient>
 
       <ScrollView 
         style={styles.scrollView}
@@ -53,23 +57,18 @@ const AboutSwagatamScreen = ({ navigation }) => {
         <View style={styles.heroSection}>
           <View style={styles.logoContainer}>
             <View style={styles.logoCircle}>
-              <Text style={styles.logoText}>🏛️</Text>
+              <Icon name="office-building" size={48} color="#3477eb" />
             </View>
           </View>
           <Text style={styles.heroTitle}>Swagatam</Text>
           <Text style={styles.heroSubtitle}>Digital Visitor Management System</Text>
-          <View style={styles.badgeRow}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>✓ Digital India</Text>
-            </View>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>✓ Secure</Text>
-            </View>
-          </View>
+          <Text style={styles.heroDescription}>
+            Government of India • Ministry of Home Affairs
+          </Text>
         </View>
 
         {/* Introduction */}
-        <Section icon="📖" title="About the System">
+        <Section icon="information-outline" title="About the System">
           <Text style={styles.text}>
             Swagatam is a Government of India initiative designed to simplify appointment scheduling for citizens. This system bridges the gap between government offices and the public, enabling hassle-free appointments with government officers.
           </Text>
@@ -79,10 +78,10 @@ const AboutSwagatamScreen = ({ navigation }) => {
         </Section>
 
         {/* How It Works */}
-        <Section icon="⚙️" title="How It Works">
+        <Section icon="cog-outline" title="How It Works">
           <View style={styles.stepCard}>
-            <View style={styles.stepNumber}>
-              <Text style={styles.stepNumberText}>1</Text>
+            <View style={styles.stepNumberBox}>
+              <Text style={styles.stepNumber}>1</Text>
             </View>
             <View style={styles.stepContent}>
               <Text style={styles.stepTitle}>Register</Text>
@@ -91,8 +90,8 @@ const AboutSwagatamScreen = ({ navigation }) => {
           </View>
 
           <View style={styles.stepCard}>
-            <View style={styles.stepNumber}>
-              <Text style={styles.stepNumberText}>2</Text>
+            <View style={styles.stepNumberBox}>
+              <Text style={styles.stepNumber}>2</Text>
             </View>
             <View style={styles.stepContent}>
               <Text style={styles.stepTitle}>Verify</Text>
@@ -101,8 +100,8 @@ const AboutSwagatamScreen = ({ navigation }) => {
           </View>
 
           <View style={styles.stepCard}>
-            <View style={styles.stepNumber}>
-              <Text style={styles.stepNumberText}>3</Text>
+            <View style={styles.stepNumberBox}>
+              <Text style={styles.stepNumber}>3</Text>
             </View>
             <View style={styles.stepContent}>
               <Text style={styles.stepTitle}>Request Appointment</Text>
@@ -111,8 +110,8 @@ const AboutSwagatamScreen = ({ navigation }) => {
           </View>
 
           <View style={styles.stepCard}>
-            <View style={styles.stepNumber}>
-              <Text style={styles.stepNumberText}>4</Text>
+            <View style={styles.stepNumberBox}>
+              <Text style={styles.stepNumber}>4</Text>
             </View>
             <View style={styles.stepContent}>
               <Text style={styles.stepTitle}>Get Confirmation</Text>
@@ -121,8 +120,8 @@ const AboutSwagatamScreen = ({ navigation }) => {
           </View>
 
           <View style={styles.stepCard}>
-            <View style={styles.stepNumber}>
-              <Text style={styles.stepNumberText}>5</Text>
+            <View style={styles.stepNumberBox}>
+              <Text style={styles.stepNumber}>5</Text>
             </View>
             <View style={styles.stepContent}>
               <Text style={styles.stepTitle}>Visit Office</Text>
@@ -132,77 +131,121 @@ const AboutSwagatamScreen = ({ navigation }) => {
         </Section>
 
         {/* Key Features */}
-        <Section icon="✨" title="Key Features">
-          <View style={styles.featuresGrid}>
-            <View style={styles.featureItem}>
-              <Text style={styles.featureIcon}>☁️</Text>
-              <Text style={styles.featureTitle}>Cloud Based</Text>
-              <Text style={styles.featureDesc}>Multi-tenant architecture</Text>
+        <Section icon="star-outline" title="Key Features">
+          <View style={styles.featuresList}>
+            <View style={styles.featureLine}>
+              <Icon name="cloud-outline" size={24} color="#3477eb" />
+              <View style={styles.featureContent}>
+                <Text style={styles.featureTitle}>Cloud Based</Text>
+                <Text style={styles.featureDesc}>Multi-tenant cloud architecture</Text>
+              </View>
             </View>
 
-            <View style={styles.featureItem}>
-              <Text style={styles.featureIcon}>🔐</Text>
-              <Text style={styles.featureTitle}>Secure</Text>
-              <Text style={styles.featureDesc}>Advanced security features</Text>
+            <View style={styles.featureLine}>
+              <Icon name="shield-lock-outline" size={24} color="#3477eb" />
+              <View style={styles.featureContent}>
+                <Text style={styles.featureTitle}>Secure</Text>
+                <Text style={styles.featureDesc}>Advanced security features</Text>
+              </View>
             </View>
 
-            <View style={styles.featureItem}>
-              <Text style={styles.featureIcon}>📱</Text>
-              <Text style={styles.featureTitle}>SMS Alerts</Text>
-              <Text style={styles.featureDesc}>Real-time notifications</Text>
+            <View style={styles.featureLine}>
+              <Icon name="message-alert-outline" size={24} color="#3477eb" />
+              <View style={styles.featureContent}>
+                <Text style={styles.featureTitle}>SMS Alerts</Text>
+                <Text style={styles.featureDesc}>Real-time notifications</Text>
+              </View>
             </View>
 
-            <View style={styles.featureItem}>
-              <Text style={styles.featureIcon}>📊</Text>
-              <Text style={styles.featureTitle}>Reports</Text>
-              <Text style={styles.featureDesc}>Comprehensive analytics</Text>
+            <View style={styles.featureLine}>
+              <Icon name="chart-line" size={24} color="#3477eb" />
+              <View style={styles.featureContent}>
+                <Text style={styles.featureTitle}>Reports</Text>
+                <Text style={styles.featureDesc}>Comprehensive analytics</Text>
+              </View>
             </View>
 
-            <View style={styles.featureItem}>
-              <Text style={styles.featureIcon}>⚡</Text>
-              <Text style={styles.featureTitle}>Fast Access</Text>
-              <Text style={styles.featureDesc}>Quick registration</Text>
+            <View style={styles.featureLine}>
+              <Icon name="lightning-bolt-outline" size={24} color="#3477eb" />
+              <View style={styles.featureContent}>
+                <Text style={styles.featureTitle}>Fast Access</Text>
+                <Text style={styles.featureDesc}>Quick registration process</Text>
+              </View>
             </View>
 
-            <View style={styles.featureItem}>
-              <Text style={styles.featureIcon}>🌐</Text>
-              <Text style={styles.featureTitle}>Scalable</Text>
-              <Text style={styles.featureDesc}>Highly scalable system</Text>
+            <View style={styles.featureLine}>
+              <Icon name="arrow-expand-all" size={24} color="#3477eb" />
+              <View style={styles.featureContent}>
+                <Text style={styles.featureTitle}>Scalable</Text>
+                <Text style={styles.featureDesc}>Highly scalable system</Text>
+              </View>
             </View>
           </View>
         </Section>
 
         {/* For Organizations */}
-        <Section icon="🏢" title="For Organizations">
+        <Section icon="office-building-outline" title="For Organizations">
           <Text style={styles.infoTitle}>Interested in using Swagatam?</Text>
           <Text style={styles.text}>
             Central Government, State Government, and Public Sector organizations can submit their onboarding request online.
           </Text>
           
           <View style={styles.requirementBox}>
-            <Text style={styles.requirementTitle}>📋 Requirements</Text>
+            <Text style={styles.requirementTitle}>System Requirements</Text>
             <BulletPoint text="Internet connectivity (1 system per 50 visitors/day)" />
             <BulletPoint text="Computer with stable power supply" />
             <BulletPoint text="Printer, webcam, and barcode reader" />
-            <BulletPoint text="Wired internet connection" />
+            <BulletPoint text="Wired internet connection recommended" />
           </View>
         </Section>
 
-        {/* Footer */}
-        <View style={styles.footerContainer}>
-          <View style={styles.nicCard}>
-            <View style={styles.nicLogoBox}>
-              <Text style={styles.nicLogo}>NIC</Text>
+        {/* Benefits */}
+        <Section icon="check-circle-outline" title="Why Choose Swagatam">
+          <View style={styles.benefitsContainer}>
+            <View style={styles.benefitRow}>
+              <Icon name="clock-fast" size={24} color="#3477eb" />
+              <View style={styles.benefitContent}>
+                <Text style={styles.benefitTitle}>Save Time</Text>
+                <Text style={styles.benefitText}>Eliminate waiting in long queues</Text>
+              </View>
             </View>
-            <Text style={styles.nicTitle}>National Informatics Centre</Text>
-            <Text style={styles.nicSubtitle}>Ministry of Electronics & IT</Text>
-            <View style={styles.divider} />
-            <Text style={styles.copyright}>© 2019 NIC. All rights reserved.</Text>
-          </View>
 
-          <View style={styles.govInitiative}>
-            <Text style={styles.initiativeIcon}>🏛️</Text>
-            <Text style={styles.initiativeText}>A Digital India Initiative</Text>
+            <View style={styles.benefitRow}>
+              <Icon name="shield-check-outline" size={24} color="#3477eb" />
+              <View style={styles.benefitContent}>
+                <Text style={styles.benefitTitle}>Secure & Safe</Text>
+                <Text style={styles.benefitText}>Your data is protected with encryption</Text>
+              </View>
+            </View>
+
+            <View style={styles.benefitRow}>
+              <Icon name="cellphone-check" size={24} color="#3477eb" />
+              <View style={styles.benefitContent}>
+                <Text style={styles.benefitTitle}>Easy to Use</Text>
+                <Text style={styles.benefitText}>Simple and intuitive interface</Text>
+              </View>
+            </View>
+
+            <View style={styles.benefitRow}>
+              <Icon name="bell-ring-outline" size={24} color="#3477eb" />
+              <View style={styles.benefitContent}>
+                <Text style={styles.benefitTitle}>Real-time Updates</Text>
+                <Text style={styles.benefitText}>Get instant notifications via SMS and email</Text>
+              </View>
+            </View>
+          </View>
+        </Section>
+
+        {/* Footer with NIC Logo */}
+        <View style={styles.footerContainer}>
+          <Image 
+            source={require('../assets/images/niclogo.jpeg')} 
+            style={styles.nicLogo}
+            resizeMode="contain"
+          />
+
+          <View style={styles.copyrightBox}>
+            <Text style={styles.copyright}>© 2019-2026 National Informatics Centre. All rights reserved.</Text>
           </View>
         </View>
 
@@ -215,38 +258,27 @@ const AboutSwagatamScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#FFFFFF',
   },
-  header: {
-    backgroundColor: '#0A2463',
+  headerGradient: {
     paddingTop: Platform.OS === 'ios' ? 50 : 40,
     paddingBottom: 20,
-    paddingHorizontal: 16,
+  },
+  header: {
+    paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 8,
   },
   backButton: {
     width: 40,
     height: 40,
     justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backButtonText: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '400',
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: '#FFFFFF',
-    letterSpacing: 0.5,
     flex: 1,
     textAlign: 'center',
   },
@@ -257,129 +289,104 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: 0,
   },
   heroSection: {
     backgroundColor: '#FFFFFF',
-    paddingVertical: 40,
+    paddingVertical: 50,
     paddingHorizontal: 20,
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#E5E7EB',
   },
   logoContainer: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   logoCircle: {
     width: 100,
     height: 100,
-    backgroundColor: '#EEF2FF',
+    backgroundColor: '#F8FAFC',
     borderRadius: 50,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
-    borderColor: '#0A2463',
-  },
-  logoText: {
-    fontSize: 50,
+    borderWidth: 2,
+    borderColor: '#3477eb',
   },
   heroTitle: {
     fontSize: 32,
     fontWeight: '800',
-    color: '#0A2463',
-    letterSpacing: 1,
+    color: '#1E293B',
+    letterSpacing: 0.5,
     marginBottom: 8,
   },
   heroSubtitle: {
-    fontSize: 15,
+    fontSize: 16,
     color: '#64748B',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 8,
     fontWeight: '600',
   },
-  badgeRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  badge: {
-    backgroundColor: '#0A2463',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  badgeText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
+  heroDescription: {
+    fontSize: 14,
+    color: '#94A3B8',
+    textAlign: 'center',
+    fontWeight: '500',
   },
   section: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
-    marginTop: 20,
+    marginTop: 16,
     borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
   },
   sectionHeader: {
-    backgroundColor: '#F8FAFC',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 16,
+    backgroundColor: '#F8FAFC',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  sectionIconBadge: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#EEF2FF',
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
+    borderBottomColor: '#E5E7EB',
   },
   sectionIcon: {
-    fontSize: 20,
+    marginRight: 12,
   },
   sectionTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#1E293B',
   },
   sectionContent: {
     padding: 20,
   },
   text: {
     fontSize: 14,
-    color: '#475569',
+    color: '#64748B',
     lineHeight: 22,
     marginBottom: 14,
   },
   stepCard: {
     flexDirection: 'row',
     backgroundColor: '#F8FAFC',
-    borderRadius: 12,
+    borderRadius: 10,
     padding: 16,
     marginBottom: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: '#0A2463',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
-  stepNumber: {
-    width: 36,
-    height: 36,
-    backgroundColor: '#0A2463',
-    borderRadius: 18,
+  stepNumberBox: {
+    width: 40,
+    height: 40,
+    backgroundColor: '#3477eb',
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 14,
+    marginRight: 16,
   },
-  stepNumberText: {
+  stepNumber: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
@@ -390,155 +397,133 @@ const styles = StyleSheet.create({
   stepTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#1E293B',
     marginBottom: 4,
   },
   stepText: {
     fontSize: 13,
     color: '#64748B',
-    lineHeight: 18,
+    lineHeight: 19,
   },
-  featuresGrid: {
+  featuresList: {
+    gap: 0,
+  },
+  featureLine: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  featureItem: {
-    width: '48%',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 16,
     alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E5E7EB',
   },
-  featureIcon: {
-    fontSize: 36,
-    marginBottom: 10,
+  featureContent: {
+    flex: 1,
+    marginLeft: 16,
   },
   featureTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#1E293B',
     marginBottom: 4,
   },
   featureDesc: {
-    fontSize: 11,
+    fontSize: 13,
     color: '#64748B',
-    textAlign: 'center',
+    lineHeight: 18,
   },
   infoTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#0A2463',
+    color: '#1E293B',
     marginBottom: 10,
   },
   requirementBox: {
-    backgroundColor: '#F0F9FF',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 18,
     marginTop: 16,
     borderWidth: 1,
-    borderColor: '#BAE6FD',
+    borderColor: '#E5E7EB',
   },
   requirementTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#0369A1',
-    marginBottom: 12,
+    color: '#1E293B',
+    marginBottom: 14,
   },
   bulletContainer: {
     flexDirection: 'row',
     marginBottom: 10,
+    alignItems: 'flex-start',
   },
   bullet: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#0A2463',
+    backgroundColor: '#3477eb',
     marginTop: 7,
     marginRight: 10,
   },
   bulletText: {
     flex: 1,
     fontSize: 13,
-    color: '#475569',
+    color: '#64748B',
     lineHeight: 20,
   },
-  footerContainer: {
-    marginHorizontal: 16,
-    marginTop: 30,
+  benefitsContainer: {
+    gap: 16,
   },
-  nicCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 28,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+  benefitRow: {
+    flexDirection: 'row',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 16,
+    alignItems: 'flex-start',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E5E7EB',
   },
-  nicLogoBox: {
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: '#0A2463',
+  benefitContent: {
+    flex: 1,
+    marginLeft: 14,
   },
-  nicLogo: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#0A2463',
-    letterSpacing: 2,
-  },
-  nicTitle: {
-    fontSize: 16,
+  benefitTitle: {
+    fontSize: 15,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#1E293B',
     marginBottom: 4,
-    textAlign: 'center',
   },
-  nicSubtitle: {
+  benefitText: {
     fontSize: 13,
     color: '#64748B',
-    fontWeight: '600',
-    marginBottom: 16,
+    lineHeight: 19,
   },
-  divider: {
-    width: 100,
-    height: 1,
-    backgroundColor: '#E2E8F0',
-    marginBottom: 12,
+  footerContainer: {
+    backgroundColor: '#F8FAFC',
+    marginTop: 30,
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    alignItems: 'center',
+  },
+  nicLogo: {
+    width: '100%',
+    height: 120,
+    marginBottom: 10,
+    borderRadius:20,
+  },
+  copyrightBox: {
+    marginTop: 20,
+    alignItems: 'center',
   },
   copyright: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#94A3B8',
     fontWeight: '500',
-  },
-  govInitiative: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0A2463',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 16,
-  },
-  initiativeIcon: {
-    fontSize: 24,
-    marginRight: 10,
-  },
-  initiativeText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
+    textAlign: 'center',
   },
   bottomPadding: {
     height: 20,

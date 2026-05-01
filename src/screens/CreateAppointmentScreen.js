@@ -11,10 +11,10 @@ import {
   Alert,
   Modal,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DatePicker from 'react-native-date-picker';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { Dropdown } from 'react-native-element-dropdown';
 
 const CreateAppointmentScreen = ({ navigation }) => {
   const [formData, setFormData] = useState({
@@ -40,68 +40,92 @@ const CreateAppointmentScreen = ({ navigation }) => {
 
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [tempDate, setTempDate] = useState(new Date());
+  const [tempTime, setTempTime] = useState(new Date());
   const [documentUploaded, setDocumentUploaded] = useState(false);
   const [documentUri, setDocumentUri] = useState(null);
   const [showDocumentModal, setShowDocumentModal] = useState(false);
 
+  const organizationTypeOptions = [
+    { label: 'SELECT', value: 'SELECT' },
+    { label: 'Central Government', value: 'Central Government' },
+    { label: 'State Government', value: 'State Government' },
+    { label: 'Public Sector', value: 'Public Sector' },
+    { label: 'Autonomous Body', value: 'Autonomous Body' },
+    { label: 'Other', value: 'Other' },
+  ];
+
+  const buildingOptions = [
+    { label: 'SELECT', value: 'SELECT' },
+    { label: 'NIC Headquarter', value: 'NIC Headquarter' },
+    { label: 'NDC Shastri Park', value: 'NDC Shastri Park' },
+    { label: 'Laxmi Nagar Data Centre', value: 'Laxmi Nagar Data Centre' },
+  ];
+
+  const authorityOptions = [
+    { label: 'SELECT', value: 'SELECT' },
+    { label: 'ANJU SAGAR', value: 'ANJU SAGAR' },
+    { label: 'YATRINDRTA SAXENA', value: 'YATRINDRTA SAXENA' },
+  ];
+
   const stateOptions = [
-    'SELECT',
-    'ANDAMAN AND NICOBAR',
-    'ANDHRA PRADESH',
-    'ARUNACHAL PRADESH',
-    'ASSAM',
-    'BIHAR',
-    'CHANDIGARH',
-    'CHHATTISGARH',
-    'DADRA AND NAGAR HAVELI',
-    'DAMAN AND DIU',
-    'DELHI',
-    'GOA',
-    'GUJARAT',
-    'HARYANA',
-    'HIMACHAL PRADESH',
-    'JAMMU AND KASHMIR',
-    'JHARKHAND',
-    'KARNATAKA',
-    'KERALA',
-    'LADAKH',
-    'LAKSHADWEEP',
-    'MADHYA PRADESH',
-    'MAHARASHTRA',
-    'MANIPUR',
-    'MEGHALAYA',
-    'MIZORAM',
-    'NAGALAND',
-    'ORISSA',
-    'PUDUCHERRY',
-    'PUNJAB',
-    'RAJASTHAN',
-    'SIKKIM',
-    'TAMIL NADU',
-    'TELANGANA',
-    'TRIPURA',
-    'UTTAR PRADESH',
-    'UTTARAKHAND',
-    'WEST BENGAL',
+    { label: 'SELECT', value: 'SELECT' },
+    { label: 'ANDAMAN AND NICOBAR', value: 'ANDAMAN AND NICOBAR' },
+    { label: 'ANDHRA PRADESH', value: 'ANDHRA PRADESH' },
+    { label: 'ARUNACHAL PRADESH', value: 'ARUNACHAL PRADESH' },
+    { label: 'ASSAM', value: 'ASSAM' },
+    { label: 'BIHAR', value: 'BIHAR' },
+    { label: 'CHANDIGARH', value: 'CHANDIGARH' },
+    { label: 'CHHATTISGARH', value: 'CHHATTISGARH' },
+    { label: 'DADRA AND NAGAR HAVELI', value: 'DADRA AND NAGAR HAVELI' },
+    { label: 'DAMAN AND DIU', value: 'DAMAN AND DIU' },
+    { label: 'DELHI', value: 'DELHI' },
+    { label: 'GOA', value: 'GOA' },
+    { label: 'GUJARAT', value: 'GUJARAT' },
+    { label: 'HARYANA', value: 'HARYANA' },
+    { label: 'HIMACHAL PRADESH', value: 'HIMACHAL PRADESH' },
+    { label: 'JAMMU AND KASHMIR', value: 'JAMMU AND KASHMIR' },
+    { label: 'JHARKHAND', value: 'JHARKHAND' },
+    { label: 'KARNATAKA', value: 'KARNATAKA' },
+    { label: 'KERALA', value: 'KERALA' },
+    { label: 'LADAKH', value: 'LADAKH' },
+    { label: 'LAKSHADWEEP', value: 'LAKSHADWEEP' },
+    { label: 'MADHYA PRADESH', value: 'MADHYA PRADESH' },
+    { label: 'MAHARASHTRA', value: 'MAHARASHTRA' },
+    { label: 'MANIPUR', value: 'MANIPUR' },
+    { label: 'MEGHALAYA', value: 'MEGHALAYA' },
+    { label: 'MIZORAM', value: 'MIZORAM' },
+    { label: 'NAGALAND', value: 'NAGALAND' },
+    { label: 'ORISSA', value: 'ORISSA' },
+    { label: 'PUDUCHERRY', value: 'PUDUCHERRY' },
+    { label: 'PUNJAB', value: 'PUNJAB' },
+    { label: 'RAJASTHAN', value: 'RAJASTHAN' },
+    { label: 'SIKKIM', value: 'SIKKIM' },
+    { label: 'TAMIL NADU', value: 'TAMIL NADU' },
+    { label: 'TELANGANA', value: 'TELANGANA' },
+    { label: 'TRIPURA', value: 'TRIPURA' },
+    { label: 'UTTAR PRADESH', value: 'UTTAR PRADESH' },
+    { label: 'UTTARAKHAND', value: 'UTTARAKHAND' },
+    { label: 'WEST BENGAL', value: 'WEST BENGAL' },
   ];
 
   const departmentOptions = [
-    'SELECT',
-    'National Informatic Centre',
-    'CENTRAL POWER RESEARCH INSTITUTE',
-    'Ministry Of Electronics and Information Technology',
-    'UAT(Testing)',
-    'Unique Identification Authority Of India MeitY',
-    'Enforcement Directorate',
+    { label: 'SELECT', value: 'SELECT' },
+    { label: 'National Informatic Centre', value: 'National Informatic Centre' },
+    { label: 'CENTRAL POWER RESEARCH INSTITUTE', value: 'CENTRAL POWER RESEARCH INSTITUTE' },
+    { label: 'Ministry Of Electronics and Information Technology', value: 'Ministry Of Electronics and Information Technology' },
+    { label: 'UAT(Testing)', value: 'UAT(Testing)' },
+    { label: 'Unique Identification Authority Of India MeitY', value: 'Unique Identification Authority Of India MeitY' },
+    { label: 'Enforcement Directorate', value: 'Enforcement Directorate' },
   ];
 
   const visitTypeOptions = [
-    'SELECT',
-    'Official',
-    'Personal',
-    'Meeting',
-    'Other',
-    'On Duty',
+    { label: 'SELECT', value: 'SELECT' },
+    { label: 'Official', value: 'Official' },
+    { label: 'Personal', value: 'Personal' },
+    { label: 'Meeting', value: 'Meeting' },
+    { label: 'Other', value: 'Other' },
+    { label: 'On Duty', value: 'On Duty' },
   ];
 
   const handleInputChange = (field, value) => {
@@ -118,20 +142,34 @@ const CreateAppointmentScreen = ({ navigation }) => {
     });
   };
 
-  const onDateChange = (event, selectedDate) => {
+  const handleDateConfirm = () => {
+    handleInputChange('visitDate', tempDate);
     setShowDatePicker(false);
-    if (selectedDate) {
-      handleInputChange('visitDate', selectedDate);
-      // Automatically show time picker after date is selected
-      setTimeout(() => setShowTimePicker(true), 300);
-    }
+    // Automatically show time picker after date is selected
+    setTimeout(() => setShowTimePicker(true), 300);
   };
 
-  const onTimeChange = (event, selectedTime) => {
+  const handleTimeConfirm = () => {
+    handleInputChange('visitTime', tempTime);
     setShowTimePicker(false);
-    if (selectedTime) {
-      handleInputChange('visitTime', selectedTime);
-    }
+  };
+
+  const handleDateCancel = () => {
+    setShowDatePicker(false);
+  };
+
+  const handleTimeCancel = () => {
+    setShowTimePicker(false);
+  };
+
+  const openDatePicker = () => {
+    setTempDate(formData.visitDate || new Date());
+    setShowDatePicker(true);
+  };
+
+  const openTimePicker = () => {
+    setTempTime(formData.visitTime || new Date());
+    setShowTimePicker(true);
   };
 
   const formatDate = (date) => {
@@ -204,12 +242,12 @@ const CreateAppointmentScreen = ({ navigation }) => {
       Alert.alert('Error', 'Please select Department/Organization');
       return;
     }
-    if (!formData.building) {
-      Alert.alert('Error', 'Please enter Building');
+    if (!formData.building || formData.building === 'SELECT') {
+      Alert.alert('Error', 'Please select Building');
       return;
     }
-    if (!formData.authority) {
-      Alert.alert('Error', 'Please enter Authority/Officer');
+    if (!formData.authority || formData.authority === 'SELECT') {
+      Alert.alert('Error', 'Please select Authority/Officer');
       return;
     }
     if (!formData.visitingOfficerName) {
@@ -277,12 +315,12 @@ const CreateAppointmentScreen = ({ navigation }) => {
               <Text style={styles.modalSubtitle}>Choose an option</Text>
 
               <TouchableOpacity style={styles.modalOption} onPress={onCamera}>
-                <Icon name="camera" size={24} color="#0A2463" />
+                <Icon name="camera" size={24} color="#3477eb" />
                 <Text style={styles.modalOptionText}>Open Camera</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.modalOption} onPress={onGallery}>
-                <Icon name="image" size={24} color="#0A2463" />
+                <Icon name="image" size={24} color="#3477eb" />
                 <Text style={styles.modalOptionText}>Choose from Gallery</Text>
               </TouchableOpacity>
 
@@ -301,7 +339,7 @@ const CreateAppointmentScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0A2463" />
+      <StatusBar barStyle="light-content" backgroundColor="#3477eb" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -319,6 +357,7 @@ const CreateAppointmentScreen = ({ navigation }) => {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        nestedScrollEnabled={true}
       >
         {/* Main Form Section */}
         <View style={styles.section}>
@@ -327,41 +366,62 @@ const CreateAppointmentScreen = ({ navigation }) => {
             <Text style={styles.label}>
               Organization Type {renderRedStar()}
             </Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Enter organization type"
-              placeholderTextColor="#94A3B8"
+            <Dropdown
+              style={styles.dropdown}
+              placeholderStyle={styles.dropdownPlaceholder}
+              selectedTextStyle={styles.dropdownSelectedText}
+              iconStyle={styles.dropdownIcon}
+              containerStyle={styles.dropdownContainer}
+              data={organizationTypeOptions}
+              maxHeight={300}
+              labelField="label"
+              valueField="value"
+              placeholder="Select Organization Type"
               value={formData.organizationType}
-              onChangeText={(value) =>
-                handleInputChange('organizationType', value)
-              }
+              onChange={(item) => {
+                handleInputChange('organizationType', item.value);
+              }}
+              renderLeftIcon={() => (
+                <Icon
+                  style={styles.dropdownLeftIcon}
+                  color="#64748B"
+                  name="domain"
+                  size={20}
+                />
+              )}
             />
           </View>
 
           {/* State */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>State {renderRedStar()}</Text>
-            <View style={styles.pickerWrapper}>
-              <Picker
-                selectedValue={formData.state}
-                onValueChange={(value) => handleInputChange('state', value)}
-                style={styles.picker}
-                dropdownIconColor="#64748B"
-                itemStyle={styles.pickerItem}
-                mode="dropdown"
-                prompt="Select State"
-              >
-                {stateOptions.map((option, index) => (
-                  <Picker.Item 
-                    key={index} 
-                    label={option} 
-                    value={option}
-                    style={styles.pickerItem}
-                    color="#0F172A"
-                  />
-                ))}
-              </Picker>
-            </View>
+            <Dropdown
+              style={styles.dropdown}
+              placeholderStyle={styles.dropdownPlaceholder}
+              selectedTextStyle={styles.dropdownSelectedText}
+              inputSearchStyle={styles.dropdownSearchInput}
+              iconStyle={styles.dropdownIcon}
+              containerStyle={styles.dropdownContainer}
+              data={stateOptions}
+              search
+              maxHeight={300}
+              labelField="label"
+              valueField="value"
+              placeholder="Select State"
+              searchPlaceholder="Search..."
+              value={formData.state}
+              onChange={(item) => {
+                handleInputChange('state', item.value);
+              }}
+              renderLeftIcon={() => (
+                <Icon
+                  style={styles.dropdownLeftIcon}
+                  color="#64748B"
+                  name="map-marker"
+                  size={20}
+                />
+              )}
+            />
           </View>
 
           {/* Department/Organization */}
@@ -369,38 +429,61 @@ const CreateAppointmentScreen = ({ navigation }) => {
             <Text style={styles.label}>
               Department/Organization {renderRedStar()}
             </Text>
-            <View style={styles.pickerWrapper}>
-              <Picker
-                selectedValue={formData.department}
-                onValueChange={(value) => handleInputChange('department', value)}
-                style={styles.picker}
-                dropdownIconColor="#64748B"
-                itemStyle={styles.pickerItem}
-                mode="dropdown"
-                prompt="Select Department/Organization"
-              >
-                {departmentOptions.map((option, index) => (
-                  <Picker.Item 
-                    key={index} 
-                    label={option} 
-                    value={option}
-                    style={styles.pickerItem}
-                    color="#0F172A"
-                  />
-                ))}
-              </Picker>
-            </View>
+            <Dropdown
+              style={styles.dropdown}
+              placeholderStyle={styles.dropdownPlaceholder}
+              selectedTextStyle={styles.dropdownSelectedText}
+              inputSearchStyle={styles.dropdownSearchInput}
+              iconStyle={styles.dropdownIcon}
+              containerStyle={styles.dropdownContainer}
+              data={departmentOptions}
+              search
+              maxHeight={300}
+              labelField="label"
+              valueField="value"
+              placeholder="Select Department"
+              searchPlaceholder="Search..."
+              value={formData.department}
+              onChange={(item) => {
+                handleInputChange('department', item.value);
+              }}
+              renderLeftIcon={() => (
+                <Icon
+                  style={styles.dropdownLeftIcon}
+                  color="#64748B"
+                  name="office-building"
+                  size={20}
+                />
+              )}
+            />
           </View>
 
           {/* Building */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Building {renderRedStar()}</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Enter building name"
-              placeholderTextColor="#94A3B8"
+            <Dropdown
+              style={styles.dropdown}
+              placeholderStyle={styles.dropdownPlaceholder}
+              selectedTextStyle={styles.dropdownSelectedText}
+              iconStyle={styles.dropdownIcon}
+              containerStyle={styles.dropdownContainer}
+              data={buildingOptions}
+              maxHeight={300}
+              labelField="label"
+              valueField="value"
+              placeholder="Select Building"
               value={formData.building}
-              onChangeText={(value) => handleInputChange('building', value)}
+              onChange={(item) => {
+                handleInputChange('building', item.value);
+              }}
+              renderLeftIcon={() => (
+                <Icon
+                  style={styles.dropdownLeftIcon}
+                  color="#64748B"
+                  name="office-building-outline"
+                  size={20}
+                />
+              )}
             />
           </View>
 
@@ -409,12 +492,29 @@ const CreateAppointmentScreen = ({ navigation }) => {
             <Text style={styles.label}>
               Authority/Officer {renderRedStar()}
             </Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Enter authority/officer name"
-              placeholderTextColor="#94A3B8"
+            <Dropdown
+              style={styles.dropdown}
+              placeholderStyle={styles.dropdownPlaceholder}
+              selectedTextStyle={styles.dropdownSelectedText}
+              iconStyle={styles.dropdownIcon}
+              containerStyle={styles.dropdownContainer}
+              data={authorityOptions}
+              maxHeight={300}
+              labelField="label"
+              valueField="value"
+              placeholder="Select Authority/Officer"
               value={formData.authority}
-              onChangeText={(value) => handleInputChange('authority', value)}
+              onChange={(item) => {
+                handleInputChange('authority', item.value);
+              }}
+              renderLeftIcon={() => (
+                <Icon
+                  style={styles.dropdownLeftIcon}
+                  color="#64748B"
+                  name="account-tie"
+                  size={20}
+                />
+              )}
             />
           </View>
 
@@ -439,7 +539,7 @@ const CreateAppointmentScreen = ({ navigation }) => {
             <Text style={styles.label}>Visit Date & Time {renderRedStar()}</Text>
             <TouchableOpacity
               style={styles.dateTimeInput}
-              onPress={() => setShowDatePicker(true)}
+              onPress={openDatePicker}
             >
               <Icon name="calendar-clock" size={20} color="#64748B" style={styles.inputIcon} />
               <Text
@@ -452,51 +552,124 @@ const CreateAppointmentScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
 
-          {showDatePicker && (
-            <DateTimePicker
-              value={formData.visitDate || new Date()}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={onDateChange}
-              minimumDate={new Date()}
-              themeVariant="light"
-            />
-          )}
+          {/* Date Picker Modal - Custom with white background */}
+          <Modal
+            transparent={true}
+            visible={showDatePicker}
+            animationType="fade"
+            onRequestClose={handleDateCancel}
+          >
+            <View style={styles.datePickerModalOverlay}>
+              <View style={styles.datePickerModalContainer}>
+                <View style={styles.datePickerModalContent}>
+                  <View style={styles.datePickerHeader}>
+                    <Text style={styles.datePickerTitle}>Select Date</Text>
+                    <TouchableOpacity onPress={handleDateCancel}>
+                      <Icon name="close" size={24} color="#64748B" />
+                    </TouchableOpacity>
+                  </View>
+                  
+                  <DatePicker
+                    date={tempDate}
+                    onDateChange={setTempDate}
+                    mode="date"
+                    minimumDate={new Date()}
+                    theme="light"
+                    textColor="#0F172A"
+                    fadeToColor="#FFFFFF"
+                  />
+                  
+                  <View style={styles.datePickerButtonContainer}>
+                    <TouchableOpacity
+                      style={styles.datePickerCancelButton}
+                      onPress={handleDateCancel}
+                    >
+                      <Text style={styles.datePickerCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.datePickerConfirmButton}
+                      onPress={handleDateConfirm}
+                    >
+                      <Text style={styles.datePickerConfirmText}>Confirm</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </Modal>
 
-          {showTimePicker && (
-            <DateTimePicker
-              value={formData.visitTime || new Date()}
-              mode="time"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={onTimeChange}
-              themeVariant="light"
-            />
-          )}
+          {/* Time Picker Modal - Custom with white background */}
+          <Modal
+            transparent={true}
+            visible={showTimePicker}
+            animationType="fade"
+            onRequestClose={handleTimeCancel}
+          >
+            <View style={styles.datePickerModalOverlay}>
+              <View style={styles.datePickerModalContainer}>
+                <View style={styles.datePickerModalContent}>
+                  <View style={styles.datePickerHeader}>
+                    <Text style={styles.datePickerTitle}>Select Time</Text>
+                    <TouchableOpacity onPress={handleTimeCancel}>
+                      <Icon name="close" size={24} color="#64748B" />
+                    </TouchableOpacity>
+                  </View>
+                  
+                  <DatePicker
+                    date={tempTime}
+                    onDateChange={setTempTime}
+                    mode="time"
+                    theme="light"
+                    textColor="#0F172A"
+                    fadeToColor="#FFFFFF"
+                  />
+                  
+                  <View style={styles.datePickerButtonContainer}>
+                    <TouchableOpacity
+                      style={styles.datePickerCancelButton}
+                      onPress={handleTimeCancel}
+                    >
+                      <Text style={styles.datePickerCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.datePickerConfirmButton}
+                      onPress={handleTimeConfirm}
+                    >
+                      <Text style={styles.datePickerConfirmText}>Confirm</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </Modal>
 
           {/* Visit Type */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Visit Type {renderRedStar()}</Text>
-            <View style={styles.pickerWrapper}>
-              <Picker
-                selectedValue={formData.visitType}
-                onValueChange={(value) => handleInputChange('visitType', value)}
-                style={styles.picker}
-                dropdownIconColor="#64748B"
-                itemStyle={styles.pickerItem}
-                mode="dropdown"
-                prompt="Select Visit Type"
-              >
-                {visitTypeOptions.map((option, index) => (
-                  <Picker.Item 
-                    key={index} 
-                    label={option} 
-                    value={option}
-                    style={styles.pickerItem}
-                    color="#0F172A"
-                  />
-                ))}
-              </Picker>
-            </View>
+            <Dropdown
+              style={styles.dropdown}
+              placeholderStyle={styles.dropdownPlaceholder}
+              selectedTextStyle={styles.dropdownSelectedText}
+              iconStyle={styles.dropdownIcon}
+              containerStyle={styles.dropdownContainer}
+              data={visitTypeOptions}
+              maxHeight={300}
+              labelField="label"
+              valueField="value"
+              placeholder="Select Visit Type"
+              value={formData.visitType}
+              onChange={(item) => {
+                handleInputChange('visitType', item.value);
+              }}
+              renderLeftIcon={() => (
+                <Icon
+                  style={styles.dropdownLeftIcon}
+                  color="#64748B"
+                  name="briefcase"
+                  size={20}
+                />
+              )}
+            />
           </View>
 
           {/* Visit Purpose */}
@@ -668,6 +841,9 @@ const CreateAppointmentScreen = ({ navigation }) => {
                 {documentUploaded ? 'Document Uploaded' : 'Choose File'}
               </Text>
             </TouchableOpacity>
+            <Text style={styles.uploadInstruction}>
+              1. Please attach only pdf file that is less than 400 KB.
+            </Text>
           </View>
         </View>
 
@@ -711,7 +887,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   header: {
-    backgroundColor: '#0A2463',
+    backgroundColor: '#3477eb',
     paddingTop: Platform.OS === 'ios' ? 50 : 40,
     paddingBottom: 16,
     paddingHorizontal: 16,
@@ -791,25 +967,6 @@ const styles = StyleSheet.create({
     color: '#64748B',
     textAlign: 'right',
     marginTop: 4,
-  },
-  pickerWrapper: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    elevation: 1,
-    zIndex: 1,
-  },
-  picker: {
-    height: 48,
-    color: '#0F172A',
-    backgroundColor: '#FFFFFF',
-  },
-  pickerItem: {
-    fontSize: 14,
-    height: 35,
-    color: '#0F172A',
-    backgroundColor: '#FFFFFF',
   },
   dateTimeInput: {
     backgroundColor: '#FFFFFF',
@@ -897,17 +1054,23 @@ const styles = StyleSheet.create({
   uploadButtonTextSuccess: {
     color: '#10B981',
   },
+  uploadInstruction: {
+    fontSize: 12,
+    color: '#10B981',
+    marginTop: 8,
+    lineHeight: 18,
+  },
   buttonContainer: {
     marginHorizontal: 16,
     marginTop: 24,
     gap: 12,
   },
   submitButton: {
-    backgroundColor: '#0A2463',
+    backgroundColor: '#3477eb',
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
-    shadowColor: '#0A2463',
+    shadowColor: '#3477eb',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -925,16 +1088,61 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#EF4444',
+    borderColor: '#E2E8F0',
   },
   cancelButtonText: {
-    color: '#EF4444',
+    color: '#64748B',
     fontSize: 17,
     fontWeight: '700',
   },
   bottomPadding: {
     height: 20,
   },
+  // Dropdown Styles
+  dropdown: {
+    height: 50,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 16,
+  },
+  dropdownPlaceholder: {
+    fontSize: 15,
+    color: '#94A3B8',
+  },
+  dropdownSelectedText: {
+    fontSize: 15,
+    color: '#0F172A',
+  },
+  dropdownIcon: {
+    width: 20,
+    height: 20,
+    tintColor: '#64748B',
+  },
+  dropdownLeftIcon: {
+    marginRight: 10,
+  },
+  dropdownContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  dropdownSearchInput: {
+    height: 40,
+    fontSize: 15,
+    borderColor: '#E2E8F0',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    color: '#0F172A',
+  },
+  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -958,7 +1166,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#0A2463',
+    color: '#3477eb',
     marginBottom: 8,
     textAlign: 'center',
   },
@@ -998,6 +1206,73 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#64748B',
+  },
+  // Date/Time Picker Modal Styles
+  datePickerModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  datePickerModalContainer: {
+    width: '90%',
+    maxWidth: 400,
+  },
+  datePickerModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  datePickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  datePickerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#3477eb',
+  },
+  datePickerButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    gap: 12,
+  },
+  datePickerCancelButton: {
+    flex: 1,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  datePickerCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  datePickerConfirmButton: {
+    flex: 1,
+    backgroundColor: '#3477eb',
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  datePickerConfirmText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });
 

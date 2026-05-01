@@ -161,8 +161,8 @@ const TodaysPassScreen = ({ navigation }) => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <StatusBar barStyle="light-content" backgroundColor="#0A2463" />
-        <Icon name="loading" size={48} color="#0A2463" />
+        <StatusBar barStyle="light-content" backgroundColor="#3477eb" />
+        <Icon name="loading" size={48} color="#3477eb" />
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
@@ -171,10 +171,10 @@ const TodaysPassScreen = ({ navigation }) => {
   if (!passData || !passData.appointments || passData.appointments.length === 0) {
     return (
       <View style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#0A2463" />
+        <StatusBar barStyle="light-content" backgroundColor="#2563eb" />
         
         <LinearGradient
-          colors={['#0A2463', '#1a3d7a']}
+          colors={['#2563eb', '#2563eb']}
           style={styles.headerGradient}
         >
           <View style={styles.header}>
@@ -188,7 +188,7 @@ const TodaysPassScreen = ({ navigation }) => {
 
         <View style={styles.emptyState}>
           <View style={styles.emptyCircle}>
-            <Icon name="calendar-blank-outline" size={64} color="#0A2463" />
+            <Icon name="calendar-blank-outline" size={64} color="#3477eb" />
           </View>
           <Text style={styles.emptyTitle}>No Appointments Today</Text>
           <Text style={styles.emptyDesc}>Your approved passes will appear here</Text>
@@ -213,11 +213,11 @@ const TodaysPassScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0A2463" />
+      <StatusBar barStyle="light-content" backgroundColor="#3477eb" />
       
       {/* Gradient Header */}
       <LinearGradient
-        colors={['#0A2463', '#0A2463']}
+        colors={['#3477eb', '#5a94f5']}
         style={styles.headerGradient}
       >
         <View style={styles.header}>
@@ -239,8 +239,8 @@ const TodaysPassScreen = ({ navigation }) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={['#0A2463']}
-            tintColor="#0A2463"
+            colors={['#3477eb']}
+            tintColor="#3477eb"
           />
         }
       >
@@ -257,7 +257,7 @@ const TodaysPassScreen = ({ navigation }) => {
                 >
                   {/* Left Side - Date Box */}
                   <LinearGradient
-                    colors={['#0A2463', '#1E3A8A']}
+                    colors={['#3477eb', '#5a94f5']}
                     style={styles.dateBox}
                   >
                     <Text style={styles.dayText}>{appointment.day || 'N/A'}</Text>
@@ -269,13 +269,13 @@ const TodaysPassScreen = ({ navigation }) => {
                   <View style={styles.detailsBox}>
                     {/* Time */}
                     <View style={styles.timeRow}>
-                      <Icon name="clock-outline" size={16} color="#0A2463" />
+                      <Icon name="clock-outline" size={16} color="#3477eb" />
                       <Text style={styles.timeText}>{appointment.time || 'N/A'}</Text>
                     </View>
 
                     {/* Officer Name */}
                     <View style={styles.nameRow}>
-                      <Icon name="account-tie" size={16} color="#0A2463" />
+                      <Icon name="account-tie" size={16} color="#3477eb" />
                       <Text style={styles.officerNameText} numberOfLines={1}>
                         {appointment.officerName || 'N/A'}
                       </Text>
@@ -308,7 +308,7 @@ const TodaysPassScreen = ({ navigation }) => {
                 <View style={styles.passCard}>
                   <View style={styles.passHeader}>
                     <View style={styles.passHeaderLeft}>
-                      <Icon name="ticket-account" size={18} color="#0A2463" />
+                      <Icon name="ticket-account" size={18} color="#3477eb" />
                       <Text style={styles.passTitle}>Visitor Pass</Text>
                     </View>
                     <View style={styles.passHeaderRight}>
@@ -357,7 +357,7 @@ const TodaysPassScreen = ({ navigation }) => {
                             <QRCode
                               value={appointment.passNo}
                               size={110}
-                              color="#0A2463"
+                              color="#3477eb"
                               backgroundColor="white"
                             />
                           ) : (
@@ -379,12 +379,15 @@ const TodaysPassScreen = ({ navigation }) => {
                       </View>
                     </View>
 
-                    {/* Purpose Box */}
+                    {/* Purpose Box - Updated to look non-clickable */}
                     <View style={styles.purposeBox}>
-                      <Icon name="briefcase" size={14} color="#0A2463" />
-                      <Text style={styles.purposeText}>
-                        {appointment.purpose || 'Official Meeting'}
-                      </Text>
+                      <Icon name="briefcase-outline" size={16} color="#3477eb" />
+                      <View style={styles.purposeTextContainer}>
+                        <Text style={styles.purposeLabel}>Purpose</Text>
+                        <Text style={styles.purposeText}>
+                          {appointment.purpose || 'Official Meeting'}
+                        </Text>
+                      </View>
                     </View>
                   </View>
 
@@ -471,7 +474,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: 'rgba(10,36,99,0.08)',
+    backgroundColor: 'rgba(52, 119, 235, 0.08)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
@@ -479,7 +482,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#0A2463',
+    color: '#1F2937',
     marginBottom: 8,
   },
   emptyDesc: {
@@ -491,7 +494,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    backgroundColor: '#0A2463',
+    backgroundColor: '#3477eb',
     paddingHorizontal: 22,
     paddingVertical: 12,
     borderRadius: 10,
@@ -510,7 +513,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#0A2463',
+    shadowColor: '#3477eb',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
@@ -564,7 +567,7 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#0A2463',
+    color: '#1F2937',
   },
   nameRow: {
     flexDirection: 'row',
@@ -575,7 +578,7 @@ const styles = StyleSheet.create({
   officerNameText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#0A2463',
+    color: '#1F2937',
     flex: 1,
   },
   designationRow: {
@@ -627,7 +630,7 @@ const styles = StyleSheet.create({
   passTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#0A2463',
+    color: '#1F2937',
   },
   passHeaderRight: {
     alignItems: 'flex-end',
@@ -643,7 +646,7 @@ const styles = StyleSheet.create({
   passNumber: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#0A2463',
+    color: '#1F2937',
     backgroundColor: '#F8FAFC',
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -669,8 +672,8 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   visitorPhoto: {
-    width: 130,
-    height: 140,
+    width: 150,
+    height: 170,
     borderRadius: 12,
     backgroundColor: '#F1F5F9',
     borderWidth: 3,
@@ -702,7 +705,7 @@ const styles = StyleSheet.create({
   visitorNameText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#0A2463',
+    color: '#1F2937',
     textAlign: 'center',
     width: 130,
   },
@@ -717,8 +720,8 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#1E3A8A',
-    shadowColor: '#0A2463',
+    borderColor: '#3477eb',
+    shadowColor: '#3477eb',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.15,
     shadowRadius: 6,
@@ -747,25 +750,37 @@ const styles = StyleSheet.create({
   },
   idNumberValue: {
     fontSize: 13,
-    color: '#0A2463',
+    color: '#1F2937',
     fontWeight: '700',
   },
+  // Purpose Box - Updated styling
   purposeBox: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: '#E5E7EB',
+  },
+  purposeTextContainer: {
+    flex: 1,
+  },
+  purposeLabel: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
   },
   purposeText: {
-    fontSize: 13,
-    color: '#0A2463',
+    fontSize: 14,
+    color: '#1F2937',
     fontWeight: '600',
-    flex: 1,
+    lineHeight: 18,
   },
   // Pass Footer
   passFooter: {
@@ -798,7 +813,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     marginTop: 8,
-    shadowColor: '#0A2463',
+    shadowColor: '#3477eb',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 4,

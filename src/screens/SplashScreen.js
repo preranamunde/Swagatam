@@ -88,7 +88,7 @@ const SplashScreen = ({ onFinish }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A2463',
+    backgroundColor: '#3477eb',
     justifyContent: 'center',
     alignItems: 'center',
   },

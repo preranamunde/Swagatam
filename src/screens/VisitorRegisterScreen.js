@@ -1,227 +1,469 @@
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Image,
-  ScrollView,
-  StatusBar,
-  KeyboardAvoidingView,
-  Platform,
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  Image, ScrollView, StatusBar, KeyboardAvoidingView,
+  Platform, ActivityIndicator, Alert,
 } from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
+// ✅ Correct
+import { sendOTP, verifyOTPAndRegister } from '../constants/services/visitorRegisterService';
+
+// ─────────────────────────────────────────────
+// VALIDATION
+// ─────────────────────────────────────────────
+const isValidMobile   = (n) => /^[6-9]\d{9}$/.test(n);
+const isValidPassword = (p) =>
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d]).{8,15}$/.test(p);
+
+// ─────────────────────────────────────────────
+// COMPONENT
+// ─────────────────────────────────────────────
 const VisitorRegisterScreen = ({ navigation }) => {
-  const [name, setName] = useState('');
-  const [gender, setGender] = useState('');
-  const [mobileNo, setMobileNo] = useState('');
-  const [showGenderDropdown, setShowGenderDropdown] = useState(false);
+  const [step,         setStep]         = useState(1);
+  const [mobileNo,     setMobileNo]     = useState('');
+  const [name,         setName]         = useState('');
+  const [gender,       setGender]       = useState('');
+  const [otp,          setOtp]          = useState('');
+  const [password,     setPassword]     = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showGenderDD, setShowGenderDD] = useState(false);
+  const [loading,      setLoading]      = useState(false);
 
-  const genderOptions = ['Male', 'Female', 'Other'];
+  const genderOptions = [
+    { label: 'Male',   value: 'M' },
+    { label: 'Female', value: 'F' },
+    { label: 'Other',  value: 'O' },
+  ];
 
-  const handleSendOTP = () => {
-    if (!name || !gender || !mobileNo) {
-      alert('Please fill all required fields');
-      return;
+  // ── STEP 1 — Send OTP ──────────────────────
+  const handleSendOTP = async () => {
+    if (!mobileNo)
+      return Alert.alert('Validation', 'Please enter mobile number.');
+    if (!isValidMobile(mobileNo))
+      return Alert.alert('Validation', 'Must be 10 digits and start with 6–9.');
+
+    setLoading(true);
+    try {
+      const result  = await sendOTP(mobileNo);
+      const message = result?.[0]?.Result ?? '';
+      console.log('🔍 ACTUAL API MESSAGE:', message);
+      console.log('🔍 FULL RESULT:', JSON.stringify(result));
+
+      if (message.toLowerCase().includes('already registered')) {
+        Alert.alert(
+          'Already Registered',
+          message,
+          [
+            { text: 'Go to Login', onPress: () => navigation.goBack() },
+            { text: 'OK' },
+          ]
+        );
+      } else if (
+        message.toLowerCase().includes('otp') ||
+        message.toLowerCase().includes('success') ||
+        message.toLowerCase().includes('sent') ||
+        message === ''
+      ) {
+        setStep(2);
+        Alert.alert(
+          'OTP Sent ✅',
+          `An OTP has been sent to +91-${mobileNo}.\n\n📱 Check your SMS inbox and enter it below.`
+        );
+      } else {
+        Alert.alert('Failed', message || 'Unknown response from server. Check console logs.');
+      }
+    } catch (e) {
+      console.error('❌ Send OTP Error:', e.message);
+      Alert.alert('Error', `Failed to send OTP:\n${e.message}`);
+    } finally {
+      setLoading(false);
     }
-    console.log('Send OTP:', { name, gender, mobileNo });
   };
 
-  const handleCancel = () => {
-    navigation.goBack();
-  };
+  // ── STEP 2 — Verify OTP & Register ─────────
+  const handleRegister = async () => {
+    if (!name.trim())
+      return Alert.alert('Validation', 'Please enter your full name.');
+    if (!gender)
+      return Alert.alert('Validation', 'Please select your gender.');
+    if (!otp.trim())
+      return Alert.alert('Validation', 'Please enter the OTP received on your mobile.');
+    if (!password)
+      return Alert.alert('Validation', 'Please create a password.');
+    if (!isValidPassword(password))
+      return Alert.alert(
+        'Weak Password',
+        '8–15 characters with:\n• At least one uppercase letter\n• At least one lowercase letter\n• At least one number\n• At least one special character'
+      );
 
-  const selectGender = (selectedGender) => {
-    setGender(selectedGender);
-    setShowGenderDropdown(false);
+    setLoading(true);
+    try {
+      const result  = await verifyOTPAndRegister({ mobileNo, name, gender, otp, password });
+      const message = result?.[0]?.Result ?? '';
+      const visNo   = result?.[0]?.VisNo  ?? '';
+      console.log('🔍 Register result:', message, '| VisNo:', visNo);
+
+      if (message.toLowerCase().includes('successfully')) {
+        Alert.alert(
+          '🎉 Registered Successfully!',
+          `${message}\n\nYour Visitor No: ${visNo}`,
+          [{ text: 'Go to Login', onPress: () => navigation.goBack() }]
+        );
+      } else if (
+        message.toLowerCase().includes('invalid otp') ||
+        message.toLowerCase().includes('wrong otp')
+      ) {
+        Alert.alert('Invalid OTP', 'The OTP you entered is incorrect or has expired. Please check your SMS and try again, or tap Resend OTP.');
+      } else {
+        Alert.alert('Registration Failed', message || 'Something went wrong. Please try again.');
+      }
+    } catch (e) {
+      console.error('❌ Register Error:', e.message);
+      Alert.alert('Error', `Registration failed:\n${e.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
+    <KeyboardAvoidingView
+      style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <StatusBar barStyle="light-content" backgroundColor="#0A2463" />
-      
-      {/* Header Section */}
+      <StatusBar barStyle="light-content" backgroundColor="#3477eb" />
+
+      {/* ── Header ── */}
       <View style={styles.headerSection}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={28} color="#FFFFFF" />
+        </TouchableOpacity>
         <View style={styles.headerContent}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={handleCancel}
-          >
-            <Text style={styles.backIcon}>←</Text>
-          </TouchableOpacity>
-          <View style={styles.emblemContainer}>
-            <View style={styles.emblemPlaceholder}>
-              <Image
-                source={require('../assets/images/satyamev.png')}
-                style={styles.emblemImage}
-                resizeMode="contain"
-              />
-            </View>
+          <View style={styles.logoContainer}>
+            <Image
+              source={require('../assets/images/image.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
           </View>
           <Text style={styles.govTitle}>Government of India</Text>
-          <Text style={styles.subtitle}>Digital Governance Portal</Text>
+          <Text style={styles.subtitle}>Gateway to Government Appointments</Text>
         </View>
         <View style={styles.headerWave} />
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <View style={styles.formContainer}>
-          {/* Title Section */}
-          <View style={styles.titleSection}>
-            <Text style={styles.mainTitle}>Visitor Registration</Text>
-            <Text style={styles.welcomeText}>Create your account to get started</Text>
-          </View>
 
-          {/* Name Input */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>
-              Full Name <Text style={styles.required}>*</Text>
-            </Text>
-            <View style={styles.inputWrapper}>
-              <View style={styles.inputIconContainer}>
-                <Text style={styles.inputIcon}>👤</Text>
-              </View>
-              <TextInput
-                style={styles.textInput}
-                placeholder="Enter your full name"
-                placeholderTextColor="#94A3B8"
-                value={name}
-                onChangeText={setName}
-              />
+          {/* ── Step Indicator ── */}
+          <View style={styles.stepIndicator}>
+            <View style={[styles.stepDot, styles.stepDotActive]}>
+              <Text style={[styles.stepDotText, styles.stepDotTextActive]}>1</Text>
+            </View>
+            <View style={[styles.stepLine, step === 2 && styles.stepLineActive]} />
+            <View style={[styles.stepDot, step === 2 && styles.stepDotActive]}>
+              <Text style={[styles.stepDotText, step === 2 && styles.stepDotTextActive]}>2</Text>
             </View>
           </View>
 
-          {/* Gender Selection with Dropdown */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>
-              Gender <Text style={styles.required}>*</Text>
+          {/* ── Title ── */}
+          <View style={styles.titleSection}>
+            <Text style={styles.mainTitle}>
+              {step === 1 ? 'Verify Mobile' : 'Complete Registration'}
             </Text>
-            <View style={styles.dropdownContainer}>
-              <TouchableOpacity 
-                style={styles.inputWrapper}
-                onPress={() => setShowGenderDropdown(!showGenderDropdown)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.inputIconContainer}>
-                  <Text style={styles.inputIcon}>⚧</Text>
+            <Text style={styles.welcomeText}>
+              {step === 1
+                ? 'Enter your mobile number to receive an OTP'
+                : `OTP sent to +91-${mobileNo}. Fill in your details below.`}
+            </Text>
+          </View>
+
+          {/* ══════════ STEP 1 ══════════ */}
+          {step === 1 && (
+            <>
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>
+                  Mobile Number <Text style={styles.required}>*</Text>
+                </Text>
+                <View style={styles.inputWrapper}>
+                  <View style={styles.inputIconContainer}>
+                    <Icon name="cellphone" size={24} color="#0A2463" />
+                  </View>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Enter 10-digit mobile number"
+                    placeholderTextColor="#94A3B8"
+                    value={mobileNo}
+                    onChangeText={setMobileNo}
+                    keyboardType="phone-pad"
+                    maxLength={10}
+                  />
                 </View>
-                <View style={styles.selectInput}>
-                  <Text style={gender ? styles.selectedText : styles.placeholderText}>
-                    {gender || 'Select your gender'}
+              </View>
+
+              <View style={styles.infoBox}>
+                <Icon name="information-outline" size={20} color="#3B82F6" />
+                <Text style={styles.infoText}>
+                  An OTP will be sent via SMS to this number for verification
+                </Text>
+              </View>
+
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity
+                  style={styles.primaryButton}
+                  onPress={handleSendOTP}
+                  disabled={loading}
+                  activeOpacity={0.8}
+                >
+                  {loading
+                    ? <ActivityIndicator color="#fff" />
+                    : (
+                      <>
+                        <Text style={styles.primaryButtonText}>Send OTP</Text>
+                        <Ionicons name="arrow-forward" size={20} color="#FFF" style={styles.buttonIcon} />
+                      </>
+                    )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={() => navigation.goBack()}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+
+          {/* ══════════ STEP 2 ══════════ */}
+          {step === 2 && (
+            <>
+              {/* ── OTP Info Banner ── */}
+              <View style={styles.otpInfoBanner}>
+                <Icon name="message-text-outline" size={22} color="#059669" />
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={styles.otpInfoTitle}>OTP Sent to Your Mobile</Text>
+                  <Text style={styles.otpInfoText}>
+                    Check your SMS inbox for the OTP sent to{' '}
+                    <Text style={styles.otpMobileHighlight}>+91-{mobileNo}</Text>.
+                    Enter it in the OTP field below.
                   </Text>
                 </View>
-                <View style={styles.dropdownIconContainer}>
-                  <Text style={styles.dropdownIcon}>{showGenderDropdown ? '▲' : '▼'}</Text>
+              </View>
+
+              {/* ── Full Name ── */}
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>
+                  Full Name <Text style={styles.required}>*</Text>
+                </Text>
+                <View style={styles.inputWrapper}>
+                  <View style={styles.inputIconContainer}>
+                    <Icon name="account-outline" size={24} color="#0A2463" />
+                  </View>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Enter your full name"
+                    placeholderTextColor="#94A3B8"
+                    value={name}
+                    onChangeText={setName}
+                    autoCapitalize="words"
+                  />
                 </View>
+              </View>
+
+              {/* ── Gender ── */}
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>
+                  Gender <Text style={styles.required}>*</Text>
+                </Text>
+                <View style={styles.dropdownContainer}>
+                  <TouchableOpacity
+                    style={styles.inputWrapper}
+                    onPress={() => setShowGenderDD(!showGenderDD)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.inputIconContainer}>
+                      <Icon name="gender-male-female" size={24} color="#0A2463" />
+                    </View>
+                    <View style={styles.selectInput}>
+                      <Text style={gender ? styles.selectedText : styles.placeholderText}>
+                        {genderOptions.find(g => g.value === gender)?.label || 'Select your gender'}
+                      </Text>
+                    </View>
+                    <View style={styles.dropdownIconContainer}>
+                      <Ionicons
+                        name={showGenderDD ? 'chevron-up' : 'chevron-down'}
+                        size={20}
+                        color="#64748B"
+                      />
+                    </View>
+                  </TouchableOpacity>
+                  {showGenderDD && (
+                    <View style={styles.dropdownList}>
+                      {genderOptions.map((opt, i) => (
+                        <TouchableOpacity
+                          key={i}
+                          style={[
+                            styles.dropdownItem,
+                            i === genderOptions.length - 1 && styles.dropdownItemLast,
+                            gender === opt.value && styles.dropdownItemSelected,
+                          ]}
+                          onPress={() => { setGender(opt.value); setShowGenderDD(false); }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[
+                            styles.dropdownItemText,
+                            gender === opt.value && styles.dropdownItemTextSelected,
+                          ]}>
+                            {opt.label}
+                          </Text>
+                          {gender === opt.value && (
+                            <Ionicons name="checkmark" size={20} color="#3477eb" />
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* ── OTP Field ── */}
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>
+                  OTP <Text style={styles.required}>*</Text>
+                  <Text style={styles.otpLabelHint}> (received on your mobile via SMS)</Text>
+                </Text>
+                <View style={[styles.inputWrapper, styles.otpInputWrapper]}>
+                  <View style={[styles.inputIconContainer, styles.otpIconContainer]}>
+                    <Icon name="shield-key-outline" size={24} color="#059669" />
+                  </View>
+                  <TextInput
+                    style={[styles.textInput, styles.otpTextInput]}
+                    placeholder="Enter OTP from SMS"
+                    placeholderTextColor="#94A3B8"
+                    value={otp}
+                    onChangeText={setOtp}
+                    keyboardType="numeric"
+                    maxLength={6}
+                    autoFocus={true}
+                  />
+                  {otp.length > 0 && (
+                    <View style={styles.otpLengthBadge}>
+                      <Text style={styles.otpLengthText}>{otp.length}/6</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.otpHelperText}>
+                  📱 Open your SMS app → look for a message from Swagatam/NIC
+                </Text>
+              </View>
+
+              {/* ── Password ── */}
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>
+                  Password <Text style={styles.required}>*</Text>
+                </Text>
+                <View style={styles.inputWrapper}>
+                  <View style={styles.inputIconContainer}>
+                    <Icon name="lock-outline" size={24} color="#0A2463" />
+                  </View>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Create a strong password"
+                    placeholderTextColor="#94A3B8"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                  />
+                  <TouchableOpacity
+                    style={styles.dropdownIconContainer}
+                    onPress={() => setShowPassword(!showPassword)}
+                  >
+                    <Ionicons
+                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                      size={22}
+                      color="#64748B"
+                    />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.passwordHint}>
+                  8–15 chars · uppercase · lowercase · number · special character
+                </Text>
+              </View>
+
+              {/* ── Resend OTP ── */}
+              <TouchableOpacity
+                onPress={handleSendOTP}
+                style={styles.resendRow}
+                disabled={loading}
+              >
+                <Icon name="refresh" size={16} color="#3477eb" />
+                <Text style={styles.resendText}>  Resend OTP</Text>
               </TouchableOpacity>
 
-              {/* Dropdown Options */}
-              {showGenderDropdown && (
-                <View style={styles.dropdownList}>
-                  {genderOptions.map((option, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={[
-                        styles.dropdownItem,
-                        index === genderOptions.length - 1 && styles.dropdownItemLast,
-                        gender === option && styles.dropdownItemSelected
-                      ]}
-                      onPress={() => selectGender(option)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[
-                        styles.dropdownItemText,
-                        gender === option && styles.dropdownItemTextSelected
-                      ]}>
-                        {option}
-                      </Text>
-                      {gender === option && (
-                        <Text style={styles.checkmark}>✓</Text>
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
-          </View>
-
-          {/* Mobile Number Input */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>
-              Mobile Number <Text style={styles.required}>*</Text>
-            </Text>
-            <View style={styles.inputWrapper}>
-              <View style={styles.inputIconContainer}>
-                <Text style={styles.inputIcon}>📱</Text>
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity
+                  style={styles.primaryButton}
+                  onPress={handleRegister}
+                  disabled={loading}
+                  activeOpacity={0.8}
+                >
+                  {loading
+                    ? <ActivityIndicator color="#fff" />
+                    : (
+                      <>
+                        <Text style={styles.primaryButtonText}>Register</Text>
+                        <Ionicons
+                          name="checkmark-circle-outline"
+                          size={20}
+                          color="#FFF"
+                          style={styles.buttonIcon}
+                        />
+                      </>
+                    )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={() => setStep(1)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.cancelButtonText}>← Change Mobile</Text>
+                </TouchableOpacity>
               </View>
-              <TextInput
-                style={styles.textInput}
-                placeholder="Enter 10-digit mobile number"
-                placeholderTextColor="#94A3B8"
-                value={mobileNo}
-                onChangeText={setMobileNo}
-                keyboardType="phone-pad"
-                maxLength={10}
-              />
-            </View>
-          </View>
+            </>
+          )}
 
-          {/* Info Box */}
-          <View style={styles.infoBox}>
-            <Text style={styles.infoIcon}>ℹ️</Text>
-            <Text style={styles.infoText}>
-              An OTP will be sent to your mobile number for verification
-            </Text>
-          </View>
-
-          {/* Buttons */}
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity 
-              style={styles.primaryButton} 
-              onPress={handleSendOTP}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.primaryButtonText}>Send OTP</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.cancelButton} 
-              onPress={handleCancel}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Login Link */}
+          {/* ── Login link ── */}
           <View style={styles.loginContainer}>
             <Text style={styles.loginText}>Already have an account? </Text>
-            <TouchableOpacity onPress={handleCancel}>
+            <TouchableOpacity onPress={() => navigation.goBack()}>
               <Text style={styles.loginLink}>Login Here</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <View style={styles.footerCard}>
-            <Text style={styles.footerTitle}>About Swagatam</Text>
-            <Text style={styles.footerText}>
-              Swagatam is an initiative by the Government of India to facilitate 
-              citizens. This platform enables a smooth and simple appointment process, 
-              bridging the gap between the Government and citizens.
-            </Text>
+        {/* ── About Swagatam ── */}
+        <View style={styles.swagatamContainer}>
+          <View style={styles.swagatamHeader}>
+            <Icon name="information-outline" size={20} color="#1E3A8A" />
+            <Text style={styles.swagatamTitle}>About Swagatam</Text>
           </View>
+          <Text style={styles.swagatamText}>
+            Swagatam is an initiative by the Government of India to facilitate the common man.
+            It enables citizens to have a smooth process of making an appointment — hassle free.
+          </Text>
+        </View>
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Secured by Government Authentication</Text>
           <View style={styles.securityBadge}>
-            <Text style={styles.securityIcon}>🔒</Text>
+            <Icon name="shield-check" size={16} color="#059669" />
             <Text style={styles.securityText}>SSL Encrypted</Text>
           </View>
         </View>
@@ -230,327 +472,82 @@ const VisitorRegisterScreen = ({ navigation }) => {
   );
 };
 
+// ─────────────────────────────────────────────
+// STYLES
+// ─────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
-  headerSection: {
-    backgroundColor: '#0A2463',
-    paddingTop: 50,
-    paddingBottom: 40,
-    position: 'relative',
-  },
-  headerContent: {
-    alignItems: 'center',
-    zIndex: 2,
-  },
-  backButton: {
-    position: 'absolute',
-    left: 20,
-    top: 10,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-  marginTop:-20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backIcon: {
-    fontSize: 28,
-    color: '#FFFFFF',
-    fontWeight: '900',
-  },
-  emblemContainer: {
-    marginBottom: 15,
-  },
-  emblemPlaceholder: {
-    width: 90,
-    height: 90,
-    backgroundColor: '#0A2463',
-    borderRadius: 45,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  emblemImage: {
-    width: 110,
-    height: 100,
-    marginLeft:5,
-  },
-  govTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 4,
-    letterSpacing: 0.5,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#CBD5E1',
-    fontWeight: '400',
-  },
-  headerWave: {
-    position: 'absolute',
-    bottom: -1,
-    left: 0,
-    right: 0,
-    height: 30,
-    backgroundColor: '#F8FAFC',
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 40,
-  },
-  formContainer: {
-    paddingHorizontal: 24,
-    paddingTop: 30,
-  },
-  titleSection: {
-    marginBottom: 32,
-  },
-  mainTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 6,
-  },
-  welcomeText: {
-    fontSize: 15,
-    color: '#64748B',
-    fontWeight: '400',
-  },
-  formGroup: {
-    marginBottom: 24,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#334155',
-    marginBottom: 8,
-    letterSpacing: 0.2,
-  },
-  required: {
-    color: '#EF4444',
-    fontSize: 16,
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  inputIconContainer: {
-    width: 50,
-    height: 54,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-  },
-  inputIcon: {
-    fontSize: 22,
-  },
-  textInput: {
-    flex: 1,
-    height: 54,
-    paddingHorizontal: 16,
-    fontSize: 15,
-    color: '#0F172A',
-    fontWeight: '400',
-  },
-  dropdownContainer: {
-    position: 'relative',
-    zIndex: 1000,
-  },
-  selectInput: {
-    flex: 1,
-    height: 54,
-    paddingHorizontal: 16,
-    justifyContent: 'center',
-  },
-  placeholderText: {
-    fontSize: 15,
-    color: '#94A3B8',
-  },
-  selectedText: {
-    fontSize: 15,
-    color: '#0F172A',
-    fontWeight: '500',
-  },
-  dropdownIconContainer: {
-    paddingHorizontal: 16,
-    height: 54,
-    justifyContent: 'center',
-  },
-  dropdownIcon: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  dropdownList: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    marginTop: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-    overflow: 'hidden',
-  },
-  dropdownItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  dropdownItemLast: {
-    borderBottomWidth: 0,
-  },
-  dropdownItemSelected: {
-    backgroundColor: '#EFF6FF',
-  },
-  dropdownItemText: {
-    fontSize: 15,
-    color: '#334155',
-    fontWeight: '500',
-  },
-  dropdownItemTextSelected: {
-    color: '#0A2463',
-    fontWeight: '700',
-  },
-  checkmark: {
-    fontSize: 18,
-    color: '#0A2463',
-    fontWeight: '700',
-  },
-  infoBox: {
-    flexDirection: 'row',
-    backgroundColor: '#EFF6FF',
-    padding: 14,
-    borderRadius: 10,
-    marginBottom: 24,
-    borderLeftWidth: 4,
-    borderLeftColor: '#3B82F6',
-  },
-  infoIcon: {
-    fontSize: 18,
-    marginRight: 10,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#1E40AF',
-    lineHeight: 18,
-  },
-  buttonContainer: {
-    gap: 14,
-  },
-  primaryButton: {
-    backgroundColor: '#0A2463',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: '#0A2463',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  cancelButton: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#E2E8F0',
-  },
-  cancelButtonText: {
-    color: '#64748B',
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  loginContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 28,
-  },
-  loginText: {
-    fontSize: 15,
-    color: '#64748B',
-  },
-  loginLink: {
-    fontSize: 15,
-    color: '#3B82F6',
-    fontWeight: '700',
-  },
-  footer: {
-    marginTop: 40,
-    paddingHorizontal: 24,
-  },
-  footerCard: {
-    backgroundColor: '#0F172A',
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  footerTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 10,
-  },
-  footerText: {
-    fontSize: 13,
-    color: '#CBD5E1',
-    lineHeight: 20,
-  },
-  securityBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#D1FAE5',
-    alignSelf: 'center',
-  },
-  securityIcon: {
-    fontSize: 14,
-    marginRight: 6,
-  },
-  securityText: {
-    fontSize: 12,
-    color: '#059669',
-    fontWeight: '600',
-  },
+  container:                  { flex: 1, backgroundColor: '#F8FAFC' },
+  headerSection:              { backgroundColor: '#3477eb', paddingTop: 50, paddingBottom: 40, position: 'relative' },
+  backButton:                 { position: 'absolute', top: 50, left: 20, zIndex: 10, padding: 8 },
+  headerContent:              { alignItems: 'center', zIndex: 2, paddingTop: 30 },
+  logoContainer:              { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 5, marginBottom: 15, elevation: 8 },
+  logoImage:                  { width: 140, height: 40 },
+  govTitle:                   { fontSize: 22, fontWeight: '700', color: '#FFFFFF', marginBottom: 4 },
+  subtitle:                   { fontSize: 14, color: 'rgba(255,255,255,0.8)' },
+  headerWave:                 { position: 'absolute', bottom: -1, left: 0, right: 0, height: 30, backgroundColor: '#F8FAFC', borderTopLeftRadius: 30, borderTopRightRadius: 30 },
+  scrollView:                 { flex: 1 },
+  scrollContent:              { paddingBottom: 40 },
+  formContainer:              { paddingHorizontal: 24, paddingTop: 30 },
+  stepIndicator:              { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 28 },
+  stepDot:                    { width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F1F5F9' },
+  stepDotActive:              { borderColor: '#3477eb', backgroundColor: '#3477eb' },
+  stepDotText:                { fontSize: 14, fontWeight: '700', color: '#94A3B8' },
+  stepDotTextActive:          { color: '#FFFFFF' },
+  stepLine:                   { flex: 1, height: 2, backgroundColor: '#CBD5E1', marginHorizontal: 8 },
+  stepLineActive:             { backgroundColor: '#3477eb' },
+  titleSection:               { marginBottom: 28 },
+  mainTitle:                  { fontSize: 26, fontWeight: '700', color: '#0F172A', marginBottom: 6 },
+  welcomeText:                { fontSize: 14, color: '#64748B', lineHeight: 20 },
+  formGroup:                  { marginBottom: 20 },
+  label:                      { fontSize: 14, fontWeight: '600', color: '#334155', marginBottom: 8 },
+  required:                   { color: '#EF4444', fontSize: 16 },
+  inputWrapper:               { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1.5, borderColor: '#E2E8F0', overflow: 'hidden', elevation: 2 },
+  inputIconContainer:         { width: 50, height: 54, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F1F5F9' },
+  textInput:                  { flex: 1, height: 54, paddingHorizontal: 16, fontSize: 15, color: '#0F172A' },
+  dropdownContainer:          { position: 'relative', zIndex: 1000 },
+  selectInput:                { flex: 1, height: 54, paddingHorizontal: 16, justifyContent: 'center' },
+  placeholderText:            { fontSize: 15, color: '#94A3B8' },
+  selectedText:               { fontSize: 15, color: '#0F172A', fontWeight: '500' },
+  dropdownIconContainer:      { paddingHorizontal: 16, height: 54, justifyContent: 'center' },
+  dropdownList:               { backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1.5, borderColor: '#E2E8F0', marginTop: 4, elevation: 5, overflow: 'hidden' },
+  dropdownItem:               { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  dropdownItemLast:           { borderBottomWidth: 0 },
+  dropdownItemSelected:       { backgroundColor: '#EFF6FF' },
+  dropdownItemText:           { fontSize: 15, color: '#334155', fontWeight: '500' },
+  dropdownItemTextSelected:   { color: '#3477eb', fontWeight: '700' },
+  otpInfoBanner:              { flexDirection: 'row', backgroundColor: '#ECFDF5', padding: 16, borderRadius: 12, marginBottom: 24, borderWidth: 1.5, borderColor: '#6EE7B7', alignItems: 'flex-start' },
+  otpInfoTitle:               { fontSize: 14, fontWeight: '700', color: '#065F46', marginBottom: 4 },
+  otpInfoText:                { fontSize: 13, color: '#047857', lineHeight: 20 },
+  otpMobileHighlight:         { fontWeight: '700', color: '#065F46' },
+  otpLabelHint:               { fontSize: 12, color: '#059669', fontWeight: '400' },
+  otpInputWrapper:            { borderColor: '#6EE7B7', borderWidth: 2, backgroundColor: '#F0FDF4' },
+  otpIconContainer:           { backgroundColor: '#DCFCE7' },
+  otpTextInput:               { fontSize: 20, fontWeight: '700', letterSpacing: 4, color: '#065F46' },
+  otpLengthBadge:             { paddingHorizontal: 12, height: 54, justifyContent: 'center' },
+  otpLengthText:              { fontSize: 12, color: '#059669', fontWeight: '600' },
+  otpHelperText:              { fontSize: 12, color: '#059669', marginTop: 6, lineHeight: 18 },
+  passwordHint:               { fontSize: 12, color: '#94A3B8', marginTop: 6 },
+  resendRow:                  { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  resendText:                 { fontSize: 14, color: '#3477eb', fontWeight: '600' },
+  infoBox:                    { flexDirection: 'row', backgroundColor: '#E3F2FD', padding: 16, borderRadius: 12, marginBottom: 24, borderLeftWidth: 4, borderLeftColor: '#3B82F6', alignItems: 'flex-start' },
+  infoText:                   { flex: 1, fontSize: 13, color: '#1E3A8A', lineHeight: 20, marginLeft: 10 },
+  buttonContainer:            { gap: 14 },
+  primaryButton:              { backgroundColor: '#3477eb', paddingVertical: 16, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', elevation: 4 },
+  primaryButtonText:          { color: '#FFFFFF', fontSize: 17, fontWeight: '700' },
+  buttonIcon:                 { marginLeft: 8 },
+  cancelButton:               { backgroundColor: '#FFFFFF', paddingVertical: 16, borderRadius: 12, alignItems: 'center', borderWidth: 2, borderColor: '#E2E8F0' },
+  cancelButtonText:           { color: '#64748B', fontSize: 17, fontWeight: '700' },
+  loginContainer:             { flexDirection: 'row', justifyContent: 'center', marginTop: 28 },
+  loginText:                  { fontSize: 15, color: '#64748B' },
+  loginLink:                  { fontSize: 15, color: '#3B82F6', fontWeight: '700' },
+  swagatamContainer:          { marginTop: 40, marginHorizontal: 24, marginBottom: 24, backgroundColor: '#E3F2FD', borderRadius: 12, padding: 16, borderLeftWidth: 4, borderLeftColor: '#0A2463' },
+  swagatamHeader:             { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  swagatamTitle:              { fontSize: 15, fontWeight: '700', color: '#1E3A8A', marginLeft: 8 },
+  swagatamText:               { fontSize: 13, color: '#1E3A8A', textAlign: 'justify', lineHeight: 20 },
+  footer:                     { marginTop: 16, alignItems: 'center', paddingHorizontal: 24 },
+  footerText:                 { fontSize: 13, color: '#94A3B8', marginBottom: 12 },
+  securityBadge:              { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ECFDF5', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#D1FAE5' },
+  securityText:               { fontSize: 12, color: '#059669', fontWeight: '600', marginLeft: 6 },
 });
 
 export default VisitorRegisterScreen;

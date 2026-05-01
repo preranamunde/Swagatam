@@ -18,7 +18,6 @@ import QRCode from 'react-native-qrcode-svg';
 const TodayAppointmentDetailScreen = ({ navigation, route }) => {
   const [personalDetails, setPersonalDetails] = useState(null);
   
-  // Get appointment data from navigation params
   const appointmentData = route?.params?.passData || {
     officerName: 'DEEPAK KUMAR',
     designation: 'Scientist F',
@@ -28,11 +27,11 @@ const TodayAppointmentDetailScreen = ({ navigation, route }) => {
     day: 'Wednesday',
     dayNum: '30',
     month: 'Dec',
-    time: '14:50 - 16:30',
+    time: '14:50 - 17:50',
     passNo: 'A/0208/0022/1712547/2025/5397',
     visitorName: 'SURESH GUPTA',
     location: 'North Block',
-    purpose: 'Official Meeting',
+    purpose: 'Meeting',
     participants: 2,
   };
 
@@ -44,9 +43,7 @@ const TodayAppointmentDetailScreen = ({ navigation, route }) => {
     try {
       const storedDetails = await AsyncStorage.getItem('personalDetails');
       if (storedDetails) {
-        const details = JSON.parse(storedDetails);
-        setPersonalDetails(details);
-        console.log('Loaded personal details:', details);
+        setPersonalDetails(JSON.parse(storedDetails));
       }
     } catch (error) {
       console.error('Error loading personal details:', error);
@@ -55,145 +52,62 @@ const TodayAppointmentDetailScreen = ({ navigation, route }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0A2463" />
+      <StatusBar barStyle="light-content" backgroundColor="#3477eb" />
       
       {/* Header */}
-      <LinearGradient
-        colors={['#0A2463', '#0A2463']}
-        style={styles.headerGradient}
-      >
+      <LinearGradient colors={['#3477eb', '#2563eb']} style={styles.headerGradient}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Feather name="arrow-left" size={22} color="#FFFFFF" />
+            <Feather name="arrow-left" size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Pass Details</Text>
-          <TouchableOpacity style={styles.menuBtn}>
-            <Feather name="more-vertical" size={20} color="#FFFFFF" />
+          <TouchableOpacity style={styles.shareBtn}>
+            <Feather name="download" size={20} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
       </LinearGradient>
 
-      <ScrollView 
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Top Banner */}
-        <LinearGradient
-          colors={['#00BCD4', '#0097A7']}
-          style={styles.topBanner}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-        >
-          <Text style={styles.bannerText}>गृह मंत्रालय • स्वागत संगठन</Text>
-        </LinearGradient>
-
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Main Pass Card */}
         <View style={styles.passCard}>
-          {/* Header Section */}
-          <View style={styles.passHeader}>
-            <View style={styles.headerLeft}>
-              <View style={styles.logoCircle}>
-                <Icon name="account-group" size={28} color="#0A2463" />
-              </View>
+          {/* Top Banner */}
+          <LinearGradient
+            colors={['#00BCD4', '#0097A7']}
+            style={styles.topBanner}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+          >
+            <Text style={styles.bannerText}>गृह मंत्रालय • स्वागत संगठन</Text>
+          </LinearGradient>
+
+          {/* Header Row with Logo and Building Name */}
+          <View style={styles.cardHeader}>
+            <View style={styles.logoSection}>
+              <Icon name="account-group" size={22} color="#0A2463" />
               <View>
                 <Text style={styles.logoTitle}>SWAGATAM</Text>
                 <Text style={styles.logoSubtitle}>Gateway to Visitor Convenience</Text>
               </View>
             </View>
             
-            <View style={styles.headerCenter}>
-              <Text style={styles.buildingName}>( Kartavya Bhawan 3 )</Text>
-              <Text style={styles.passType}>Daily Visitor Pass</Text>
+            <View style={styles.centerSection}>
+              <Text style={styles.buildingText}>( Kartavya Bhawan 3 )</Text>
+              <Text style={styles.passTypeText}>Daily Visitor Pass</Text>
             </View>
 
-            <View style={styles.headerRight}>
-              <Icon name="shield-star" size={50} color="#FF9933" />
-            </View>
+            <Icon name="shield-star" size={36} color="#FF9933" />
           </View>
 
-          {/* Main Content - 3 Columns */}
-          <View style={styles.mainContent}>
-            {/* Left Column - Visitor & Meeting Details */}
-            <View style={styles.leftColumn}>
-              {/* Registration Number */}
-              <View style={styles.regNoSection}>
-                <Text style={styles.sectionLabel}>Reg No पंजीकरण संख्या</Text>
+          {/* Main Body - Registration Number at top */}
+          <View style={styles.mainBody}>
+            <View style={styles.regNoRow}>
+              <View style={styles.regNoLeft}>
+                <Text style={styles.regLabel}>Reg No पंजीकरण संख्या</Text>
                 <Text style={styles.regNumber}>{appointmentData.passNo}</Text>
               </View>
-
-              {/* Visitor Details */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Visitor Details आगंतुक विवरण</Text>
-                
-                <View style={styles.infoRow}>
-                  <Text style={styles.label}>Name{'\n'}नाम</Text>
-                  <Text style={styles.value}>{personalDetails?.name || appointmentData.visitorName}</Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.label}>F/S Name{'\n'}पिता/पति का नाम</Text>
-                  <Text style={styles.value}>{personalDetails?.fatherHusbandName || 'RAJDEO PRASAD'}</Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.label}>Gender{'\n'}लिंग</Text>
-                  <Text style={styles.value}>{personalDetails?.gender || 'M'}</Text>
-                </View>
-              </View>
-
-              {/* To Meet Section */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>To Meet मिलने को</Text>
-                
-                <View style={styles.infoRow}>
-                  <Text style={styles.label}>Officer Name{'\n'}अधिकारी का नाम</Text>
-                  <Text style={styles.value}>{appointmentData.officerName}</Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.label}>Approving Officer{'\n'}अनुमोदन अधिकारी</Text>
-                  <Text style={styles.value} numberOfLines={2}>{appointmentData.officerName}({appointmentData.designation})</Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.label}>Address{'\n'}पता</Text>
-                  <Text style={styles.value} numberOfLines={3}>{appointmentData.department}, {appointmentData.agency}</Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.label}>Purpose / उद्देश्य</Text>
-                  <Text style={styles.value}>{appointmentData.purpose.toUpperCase()}</Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.label}>Remark / टिप्पणी</Text>
-                  <Text style={styles.value}>ONLINE PASS</Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.label}>Signature, Officer Visited:{'\n'}अधिकारी के हस्ताक्षर:</Text>
-                  <View style={styles.signatureLine} />
-                </View>
-              </View>
-            </View>
-
-            {/* Center Column - Photo & Additional Info */}
-            <View style={styles.centerColumn}>
-              {/* Valid Duration */}
-              <View style={styles.validDurationBox}>
-                <Text style={styles.validLabel}>Valid Duration वैध अवधि</Text>
-                <Text style={styles.validTime}>{appointmentData.time}</Text>
-                <Text style={styles.printedText}>Printed On: {appointmentData.date} 15:23</Text>
-              </View>
-
-              {/* Reg Date */}
-              <View style={styles.regDateBox}>
-                <Text style={styles.regDateLabel}>Reg Date पंजीकरण तिथि</Text>
-                <Text style={styles.regDateValue}>{appointmentData.date}</Text>
-              </View>
-
-              {/* Photo */}
-              <View style={styles.photoBox}>
+              
+              {/* Photo in top right corner */}
+              <View style={styles.photoCorner}>
                 {personalDetails?.photoUri ? (
                   <Image 
                     source={{ uri: personalDetails.photoUri }} 
@@ -202,117 +116,184 @@ const TodayAppointmentDetailScreen = ({ navigation, route }) => {
                   />
                 ) : (
                   <View style={styles.photoPlaceholder}>
-                    <Icon name="account" size={50} color="#94A3B8" />
+                    <Icon name="account" size={40} color="#94A3B8" />
                   </View>
                 )}
               </View>
-
-              {/* Address & Contact Info */}
-              <View style={styles.contactSection}>
-                <View style={styles.contactRow}>
-                  <Text style={styles.contactLabel}>Address{'\n'}पता</Text>
-                  <Text style={styles.contactValue} numberOfLines={4}>
-                    {personalDetails?.presentAddress || "**26 'BHAY 'HAND **I, *******'RAM *****'ABAD"}
-                  </Text>
-                </View>
-
-                <View style={styles.contactRow}>
-                  <Text style={styles.contactLabel}>Mobile No.{'\n'}मोबाइल नंबर</Text>
-                  <Text style={styles.contactValue}>******0723</Text>
-                </View>
-
-                <View style={styles.contactRow}>
-                  <Text style={styles.contactLabel}>ID Details{'\n'}पहचान विवरण</Text>
-                  <Text style={styles.contactValue}>
-                    {personalDetails?.identityProof || 'PASSPORT'}{'\n'}
-                    {personalDetails?.identityProofNumber ? `****${personalDetails.identityProofNumber.slice(-4)}` : '****2620'}
-                  </Text>
-                </View>
-              </View>
             </View>
 
-            {/* Right Column - QR & Validation */}
-            <View style={styles.rightColumn}>
-              {/* Pass ID */}
-              <View style={styles.passIdBox}>
-                <Text style={styles.passIdLabel}>PASS ID</Text>
-                <Text style={styles.passIdValue}>#{appointmentData.passNo.split('/').pop()}</Text>
-              </View>
+            {/* Content Area - Two Columns */}
+            <View style={styles.contentArea}>
+              {/* Left Column - Visitor & Meeting Details */}
+              <View style={styles.leftColumn}>
+                {/* Visitor Details */}
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Visitor Details आगंतुक विवरण</Text>
+                  
+                  <View style={styles.dataRow}>
+                    <Text style={styles.fieldLabel}>Name नाम</Text>
+                    <Text style={styles.fieldValue}>{personalDetails?.name || appointmentData.visitorName}</Text>
+                  </View>
 
-              {/* QR Code */}
-              <View style={styles.qrBox}>
-                <View style={styles.qrCodeContainer}>
-                  <QRCode
-                    value={appointmentData.passNo}
-                    size={110}
-                    color="#0A2463"
-                    backgroundColor="white"
-                  />
+                  <View style={styles.dataRow}>
+                    <Text style={styles.fieldLabel}>F/S Name पिता/पति का नाम</Text>
+                    <Text style={styles.fieldValue}>{personalDetails?.fatherHusbandName || 'RAJDEO PRASAD'}</Text>
+                  </View>
+
+                  <View style={styles.dataRow}>
+                    <Text style={styles.fieldLabel}>Gender लिंग</Text>
+                    <Text style={styles.fieldValue}>{personalDetails?.gender || 'M'}</Text>
+                  </View>
+                </View>
+
+                {/* To Meet Section */}
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>To Meet मिलने को</Text>
+                  
+                  <View style={styles.dataRow}>
+                    <Text style={styles.fieldLabel}>Officer Name अधिकारी का नाम</Text>
+                    <Text style={styles.fieldValue}>{appointmentData.officerName}</Text>
+                  </View>
+
+                  <View style={styles.dataRow}>
+                    <Text style={styles.fieldLabel}>Approving Officer अनुमोदन अधिकारी</Text>
+                    <Text style={styles.fieldValue} numberOfLines={2}>
+                      {appointmentData.officerName}( {appointmentData.designation} )
+                    </Text>
+                  </View>
+
+                  <View style={styles.dataRow}>
+                    <Text style={styles.fieldLabel}>Address पता</Text>
+                    <Text style={styles.fieldValue} numberOfLines={2}>
+                      {appointmentData.department}, {appointmentData.agency}
+                    </Text>
+                  </View>
+
+                  <View style={styles.dataRow}>
+                    <Text style={styles.fieldLabel}>Gadgets / गैजेट</Text>
+                    <Text style={styles.fieldValue}>-</Text>
+                  </View>
+
+                  <View style={styles.dataRow}>
+                    <Text style={styles.fieldLabel}>Purpose / उद्देश्य</Text>
+                    <Text style={styles.fieldValue}>{appointmentData.purpose.toUpperCase()}</Text>
+                  </View>
+
+                  <View style={styles.dataRow}>
+                    <Text style={styles.fieldLabel}>Remark / टिप्पणी</Text>
+                    <Text style={styles.fieldValue}>ONLINE PASS</Text>
+                  </View>
+
+                  <View style={styles.dataRow}>
+                    <Text style={styles.fieldLabel}>Signature, Officer Visited: अधिकारी के हस्ताक्षर:</Text>
+                    <View style={styles.signLine} />
+                  </View>
                 </View>
               </View>
 
-              {/* Valid Date */}
-              <View style={styles.validDateBox}>
-                <Text style={styles.validDateLabel}>Valid Date{'\n'}वैध तिथि :</Text>
-                <Text style={styles.validDateValue}>{appointmentData.date}</Text>
-              </View>
+              {/* Right Column - Valid Duration, Address, Contact & QR */}
+              <View style={styles.rightColumn}>
+                {/* Valid Duration Box */}
+                <View style={styles.validBox}>
+                  <View style={styles.emblemCircle}>
+                    <Icon name="seal" size={32} color="#0A2463" />
+                  </View>
+                  <Text style={styles.validLabel}>Valid Duration वैध अवधि :{appointmentData.time}</Text>
+                  <Text style={styles.regDateLabel}>Reg Date पंजीकरण तिथि {appointmentData.date}</Text>
+                  <Text style={styles.printedOn}>Printed On: {appointmentData.date} 15:23</Text>
+                </View>
 
-              {/* Reception Officer */}
-              <View style={styles.receptionBox}>
-                <Text style={styles.receptionTitle}>Sr. Reception/{'\n'}Reception Officer</Text>
-                <Text style={styles.receptionHindi}>वरिष्ठ स्वागत स्वागत{'\n'}अधिकारी</Text>
-                <Text style={styles.officerName}>(Kishan Raj Singh Hada)</Text>
-                <Text style={styles.gateInfo}>Gate No.1, Kartavya Bhawan 3</Text>
-                <Text style={styles.ejCode}>EJA6SWAP-SWA110.19.11.187</Text>
+                {/* Address & Contact */}
+                <View style={styles.contactSection}>
+                  <View style={styles.contactRow}>
+                    <Text style={styles.contactLabel}>Address पता</Text>
+                    <Text style={styles.contactValue} numberOfLines={3}>
+                      {personalDetails?.presentAddress || "**26 'BHAY 'HAND **I, *******'RAM *****'ABAD"}
+                    </Text>
+                  </View>
+
+                  <View style={styles.contactRow}>
+                    <Text style={styles.contactLabel}>Mobile No. मोबाइल नंबर</Text>
+                    <Text style={styles.contactValue}>******0723</Text>
+                  </View>
+
+                  <View style={styles.contactRow}>
+                    <Text style={styles.contactLabel}>ID Details पहचान विवरण</Text>
+                    <Text style={styles.contactValue}>
+                      {personalDetails?.identityProof || 'PASSPORT'}{'\n'}
+                      {personalDetails?.identityProofNumber ? `****${personalDetails.identityProofNumber.slice(-4)}` : '****2620'}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* QR Code in bottom corner */}
+                <View style={styles.qrCorner}>
+                  <View style={styles.qrWrapper}>
+                    <QRCode
+                      value={appointmentData.passNo}
+                      size={85}
+                      color="#0A2463"
+                      backgroundColor="white"
+                    />
+                  </View>
+                  <Text style={styles.validDateText}>Valid Date वैध तिथि :</Text>
+                  <Text style={styles.validDateValue}>{appointmentData.date}</Text>
+                </View>
+
+                {/* Reception Info */}
+                <View style={styles.receptionInfo}>
+                  <Text style={styles.receptionTitle}>Sr. Reception/Reception Officer</Text>
+                  <Text style={styles.receptionHindi}>वरिष्ठ स्वागत स्वागत अधिकारी</Text>
+                  <Text style={styles.receptionName}>(Kishan Raj Singh Hada)</Text>
+                  <Text style={styles.gateText}>Gate No.1, Kartavya Bhawan 3</Text>
+                  <Text style={styles.codeText}>EJA6SWAP-SWA110.19.11.187</Text>
+                </View>
               </View>
             </View>
           </View>
 
           {/* Instructions */}
-          <View style={styles.instructionsSection}>
+          <View style={styles.instructions}>
             <LinearGradient
               colors={['#00BCD4', '#0097A7']}
-              style={styles.instructionsHeader}
+              style={styles.instructionHeader}
             >
-              <Text style={styles.instructionsTitle}>INSTRUCTIONS/दिशा निर्देश</Text>
+              <Text style={styles.instructionTitle}>INSTRUCTIONS/दिशा निर्देश</Text>
             </LinearGradient>
             
-            <View style={styles.instructionsContent}>
-              <Text style={styles.instructionsHindi}>
+            <View style={styles.instructionContent}>
+              <Text style={styles.hindiText}>
                 जिस कार्यालय के लिए पास आवंटित है उसके अलावा आगंतुक सरकारी भवन के अन्य कार्यालयों में ना घूमें और मुलाकात के पश्चात पास को सुरक्षाकर्मी के पास अवश्य जमा करायें।
               </Text>
-              <Text style={styles.instructionsEnglish}>
+              <Text style={styles.englishText}>
                 VISITOR SHOULD NOT ROAM AROUND THE OFFICES IN THE GOVERNMENT BUILDING EXCEPT THE OFFICE TO BE VISITED AND HE/SHE MUST RETURN THE PASS TO SECURITY PERSONNEL AFTER THE VISIT
               </Text>
             </View>
           </View>
 
           {/* Footer */}
-          <LinearGradient
-            colors={['#00BCD4', '#0097A7']}
-            style={styles.footer}
-          >
-            <Text style={styles.footerText}>MINISTRY OF HOME AFFAIRS  •  RECEPTION ORGANISATION</Text>
+          <LinearGradient colors={['#00BCD4', '#0097A7']} style={styles.footer}>
+            <Text style={styles.footerText}>MINISTRY OF HOME AFFAIRS • RECEPTION ORGANISATION</Text>
           </LinearGradient>
         </View>
 
-        {/* Bottom Info */}
-        <View style={styles.bottomSection}>
-          <View style={styles.digitalIndiaRow}>
-            <Icon name="flag" size={18} color="#FF9933" />
-            <Text style={styles.digitalIndiaText}>A Digital India Initiative by Government of India</Text>
+        {/* Bottom NIC Info */}
+        <View style={styles.bottomInfo}>
+          <View style={styles.infoRow}>
+            <Icon name="flag" size={16} color="#FF9933" />
+            <Text style={styles.infoText}>A Digital India Initiative by Government of India</Text>
           </View>
           
-          <Text style={styles.copyrightText}>Copyright © 2019 by NIC. All rights reserved.</Text>
+          <Text style={styles.copyright}>Copyright © 2019 by NIC. All rights reserved.</Text>
           
-          <View style={styles.nicRow}>
+          <View style={styles.nicSection}>
             <View style={styles.nicBadge}>
               <Text style={styles.nicText}>NIC</Text>
             </View>
-            <View style={styles.nicInfo}>
-              <Text style={styles.nicFullName}>NATIONAL</Text>
-              <Text style={styles.nicFullName}>INFORMATICS</Text>
-              <Text style={styles.nicFullName}>CENTRE</Text>
+            <View>
+              <Text style={styles.nicName}>NATIONAL</Text>
+              <Text style={styles.nicName}>INFORMATICS</Text>
+              <Text style={styles.nicName}>CENTRE</Text>
             </View>
           </View>
         </View>
@@ -348,7 +329,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  menuBtn: {
+  shareBtn: {
     width: 40,
     height: 40,
     justifyContent: 'center',
@@ -357,414 +338,360 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  topBanner: {
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  bannerText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 1,
-  },
   passCard: {
     backgroundColor: '#FFFFFF',
     margin: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 5,
   },
-  passHeader: {
+  topBanner: {
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  bannerText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 1,
+  },
+  cardHeader: {
     flexDirection: 'row',
-    padding: 16,
-    borderBottomWidth: 2,
+    padding: 12,
+    borderBottomWidth: 1.5,
     borderBottomColor: '#E2E8F0',
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
-  headerLeft: {
+  logoSection: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    gap: 10,
-  },
-  logoCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#EFF6FF',
-    justifyContent: 'center',
-    alignItems: 'center',
+    gap: 8,
   },
   logoTitle: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: '900',
     color: '#0A2463',
   },
   logoSubtitle: {
-    fontSize: 9,
+    fontSize: 6.5,
     color: '#64748B',
     fontWeight: '500',
   },
-  headerCenter: {
+  centerSection: {
     flex: 1,
     alignItems: 'center',
   },
-  buildingName: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  passType: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: '#0A2463',
-  },
-  headerRight: {
-    width: 50,
-    alignItems: 'center',
-  },
-  mainContent: {
-    flexDirection: 'row',
-    padding: 16,
-  },
-  leftColumn: {
-    flex: 2.2,
-    paddingRight: 12,
-    minWidth: 0,
-  },
-  centerColumn: {
-    flex: 1.8,
-    paddingHorizontal: 10,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: '#E2E8F0',
-    minWidth: 0,
-  },
-  rightColumn: {
-    flex: 1.5,
-    paddingLeft: 12,
-    alignItems: 'center',
-    minWidth: 0,
-  },
-  regNoSection: {
-    marginBottom: 16,
-  },
-  sectionLabel: {
+  buildingText: {
     fontSize: 9,
     color: '#64748B',
     fontWeight: '600',
-    marginBottom: 3,
+    marginBottom: 2,
+  },
+  passTypeText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#0A2463',
+  },
+  mainBody: {
+    padding: 12,
+  },
+  regNoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  regNoLeft: {
+    flex: 1,
+  },
+  regLabel: {
+    fontSize: 7,
+    color: '#64748B',
+    fontWeight: '600',
+    marginBottom: 2,
   },
   regNumber: {
-    fontSize: 10,
+    fontSize: 8,
     color: '#0A2463',
     fontWeight: '700',
   },
-  section: {
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#0A2463',
-    marginBottom: 10,
-    paddingBottom: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  infoRow: {
-    flexDirection: 'row',
-    marginBottom: 8,
-    gap: 10,
-    alignItems: 'flex-start',
-  },
-  label: {
-    fontSize: 8,
-    color: '#64748B',
-    fontWeight: '600',
-    width: 85,
-    lineHeight: 11,
-    flexShrink: 0,
-  },
-  value: {
-    fontSize: 9,
-    color: '#0A2463',
-    fontWeight: '700',
-    flex: 1,
-    lineHeight: 12,
-    flexWrap: 'wrap',
-  },
-  signatureLine: {
-    flex: 1,
-    borderBottomWidth: 1,
-    borderBottomColor: '#CBD5E1',
-    marginTop: 8,
-  },
-  validDurationBox: {
-    backgroundColor: '#EFF6FF',
-    padding: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  validLabel: {
-    fontSize: 8,
-    color: '#64748B',
-    fontWeight: '600',
-    marginBottom: 3,
-  },
-  validTime: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: '#0A2463',
-    marginBottom: 3,
-  },
-  printedText: {
-    fontSize: 7,
-    color: '#94A3B8',
-  },
-  regDateBox: {
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    padding: 8,
-    borderRadius: 6,
-    marginBottom: 12,
-  },
-  regDateLabel: {
-    fontSize: 8,
-    color: '#64748B',
-    fontWeight: '600',
-    marginBottom: 3,
-  },
-  regDateValue: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#0A2463',
-  },
-  photoBox: {
-    alignItems: 'center',
-    marginBottom: 12,
+  photoCorner: {
+    marginLeft: 10,
   },
   photo: {
-    width: 110,
-    height: 130,
-    borderRadius: 8,
-    borderWidth: 2,
+    width: 85,
+    height: 100,
+    borderRadius: 6,
+    borderWidth: 1.5,
     borderColor: '#E2E8F0',
   },
   photoPlaceholder: {
-    width: 110,
-    height: 130,
-    borderRadius: 8,
-    borderWidth: 2,
+    width: 85,
+    height: 100,
+    borderRadius: 6,
+    borderWidth: 1.5,
     borderColor: '#E2E8F0',
     backgroundColor: '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  contactSection: {
-    gap: 6,
-  },
-  contactRow: {
+  contentArea: {
     flexDirection: 'row',
+    gap: 12,
+  },
+  leftColumn: {
+    flex: 1.5,
+  },
+  rightColumn: {
+    flex: 1,
+  },
+  section: {
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#0A2463',
+    marginBottom: 8,
+    paddingBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  dataRow: {
+    flexDirection: 'row',
+    marginBottom: 5,
     gap: 6,
     alignItems: 'flex-start',
   },
-  contactLabel: {
-    fontSize: 7,
+  fieldLabel: {
+    fontSize: 6.5,
     color: '#64748B',
     fontWeight: '600',
-    width: 50,
-    lineHeight: 10,
+    width: 90,
+    lineHeight: 9,
+    flexShrink: 0,
+  },
+  fieldValue: {
+    fontSize: 7,
+    color: '#0A2463',
+    fontWeight: '700',
+    flex: 1,
+    lineHeight: 9.5,
+  },
+  signLine: {
+    flex: 1,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#CBD5E1',
+    marginTop: 4,
+  },
+  validBox: {
+    backgroundColor: '#EFF6FF',
+    padding: 10,
+    borderRadius: 6,
+    alignItems: 'center',
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  emblemCircle: {
+    marginBottom: 6,
+  },
+  validLabel: {
+    fontSize: 7.5,
+    color: '#0A2463',
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 3,
+  },
+  regDateLabel: {
+    fontSize: 7,
+    color: '#0A2463',
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 2,
+  },
+  printedOn: {
+    fontSize: 6,
+    color: '#64748B',
+    textAlign: 'center',
+  },
+  contactSection: {
+    marginBottom: 10,
+  },
+  contactRow: {
+    flexDirection: 'row',
+    marginBottom: 5,
+    gap: 5,
+    alignItems: 'flex-start',
+  },
+  contactLabel: {
+    fontSize: 6,
+    color: '#64748B',
+    fontWeight: '600',
+    width: 38,
+    lineHeight: 8,
     flexShrink: 0,
   },
   contactValue: {
-    fontSize: 8,
+    fontSize: 6.5,
     color: '#0A2463',
-    fontWeight: '600',
-    flex: 1,
-    lineHeight: 11,
-    flexWrap: 'wrap',
-  },
-  passIdBox: {
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  passIdLabel: {
-    fontSize: 9,
-    color: '#94A3B8',
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  passIdValue: {
-    fontSize: 10,
     fontWeight: '700',
-    color: '#0A2463',
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
+    flex: 1,
+    lineHeight: 8.5,
   },
-  qrBox: {
-    marginBottom: 16,
+  qrCorner: {
     alignItems: 'center',
+    marginBottom: 10,
   },
-  qrCodeContainer: {
-    padding: 10,
+  qrWrapper: {
+    padding: 6,
     backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 2,
+    borderRadius: 5,
+    borderWidth: 1.5,
     borderColor: '#E2E8F0',
+    marginBottom: 6,
   },
-  validDateBox: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  validDateLabel: {
-    fontSize: 8,
+  validDateText: {
+    fontSize: 6.5,
     color: '#64748B',
     fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 4,
-    lineHeight: 11,
+    marginBottom: 2,
   },
   validDateValue: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '900',
     color: '#0A2463',
   },
-  receptionBox: {
+  receptionInfo: {
     alignItems: 'center',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
   },
   receptionTitle: {
-    fontSize: 7,
+    fontSize: 6,
     color: '#0A2463',
     fontWeight: '700',
     textAlign: 'center',
-    lineHeight: 10,
-    marginBottom: 2,
+    lineHeight: 8,
   },
   receptionHindi: {
-    fontSize: 7,
+    fontSize: 6,
     color: '#64748B',
     fontWeight: '600',
     textAlign: 'center',
-    lineHeight: 10,
-    marginBottom: 4,
-  },
-  officerName: {
-    fontSize: 8,
-    color: '#0A2463',
-    fontWeight: '700',
+    lineHeight: 8,
     marginBottom: 3,
   },
-  gateInfo: {
-    fontSize: 7,
+  receptionName: {
+    fontSize: 6.5,
+    color: '#0A2463',
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  gateText: {
+    fontSize: 6,
     color: '#64748B',
     fontWeight: '600',
-    marginBottom: 2,
+    marginBottom: 1,
     textAlign: 'center',
   },
-  ejCode: {
-    fontSize: 6,
+  codeText: {
+    fontSize: 5.5,
     color: '#94A3B8',
     fontWeight: '500',
   },
-  instructionsSection: {
-    marginTop: 8,
+  instructions: {
+    marginTop: 6,
   },
-  instructionsHeader: {
-    paddingVertical: 10,
+  instructionHeader: {
+    paddingVertical: 8,
     alignItems: 'center',
   },
-  instructionsTitle: {
-    fontSize: 13,
+  instructionTitle: {
+    fontSize: 10,
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.5,
   },
-  instructionsContent: {
-    padding: 12,
+  instructionContent: {
+    padding: 10,
     backgroundColor: '#F8FAFC',
   },
-  instructionsHindi: {
-    fontSize: 8,
+  hindiText: {
+    fontSize: 6.5,
     color: '#0A2463',
     textAlign: 'center',
-    lineHeight: 12,
-    marginBottom: 8,
+    lineHeight: 9,
+    marginBottom: 6,
     fontWeight: '600',
   },
-  instructionsEnglish: {
-    fontSize: 7,
+  englishText: {
+    fontSize: 6,
     color: '#0EA5D1',
     textAlign: 'center',
-    lineHeight: 11,
+    lineHeight: 8.5,
     fontWeight: '700',
   },
   footer: {
-    paddingVertical: 12,
+    paddingVertical: 10,
     alignItems: 'center',
   },
   footerText: {
-    fontSize: 13,
+    fontSize: 10,
     fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: 0.5,
   },
-  bottomSection: {
-    backgroundColor: '#0A2463',
+  bottomInfo: {
+    backgroundColor: '#3477eb',
     margin: 16,
-    padding: 20,
-    borderRadius: 12,
+    padding: 16,
+    borderRadius: 10,
     alignItems: 'center',
   },
-  digitalIndiaRow: {
+  infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
+    gap: 6,
+    marginBottom: 10,
   },
-  digitalIndiaText: {
-    fontSize: 11,
+  infoText: {
+    fontSize: 9,
     color: '#FFFFFF',
     fontWeight: '600',
   },
-  copyrightText: {
-    fontSize: 9,
+  copyright: {
+    fontSize: 7.5,
     color: '#E2E8F0',
-    marginVertical: 12,
+    marginVertical: 10,
   },
-  nicRow: {
+  nicSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
     backgroundColor: 'rgba(255,255,255,0.1)',
-    padding: 12,
-    borderRadius: 8,
-  },
-  nicBadge: {
-    backgroundColor: '#1E40AF',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    padding: 10,
     borderRadius: 6,
   },
+  nicBadge: {
+    backgroundColor: '#3477eb',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 5,
+  },
   nicText: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '900',
     color: '#FFFFFF',
   },
-  nicInfo: {
-    gap: 1,
-  },
-  nicFullName: {
-    fontSize: 7,
+  nicName: {
+    fontSize: 6,
     color: '#FFFFFF',
     fontWeight: '700',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
   bottomPadding: {
     height: 20,

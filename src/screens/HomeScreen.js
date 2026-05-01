@@ -151,6 +151,11 @@ const HomeScreen = ({ navigation }) => {
     navigation.navigate('TemporaryPassInstructions');
   };
 
+  const handleProfileClick = () => {
+    setDrawerVisible(false);
+    navigation.navigate('MyProfile');
+  };
+
   const MenuOption = ({ iconName, iconLib = 'MaterialCommunityIcons', title, onPress, isDanger = false }) => {
     const IconComponent = 
       iconLib === 'Ionicons' ? Ionicons :
@@ -261,7 +266,11 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.overlay}>
           <Animated.View style={[styles.drawer, { transform: [{ translateX: slideAnim }] }]}>
             <View style={styles.drawerHeader}>
-              <View style={styles.userSection}>
+              <TouchableOpacity 
+                style={styles.userSection}
+                onPress={handleProfileClick}
+                activeOpacity={0.7}
+              >
                 <View style={styles.avatar}>
                   {userData?.photoUri ? (
                     <Image source={{ uri: userData.photoUri }} style={styles.avatarImg} />
@@ -279,7 +288,7 @@ const HomeScreen = ({ navigation }) => {
                     {userData?.email || 'user@email.com'}
                   </Text>
                 </View>
-              </View>
+              </TouchableOpacity>
               <TouchableOpacity onPress={() => setDrawerVisible(false)} style={styles.closeBtn}>
                 <Icon name="close" size={24} color="#FFFFFF" />
               </TouchableOpacity>
@@ -422,6 +431,12 @@ const HomeScreen = ({ navigation }) => {
 
         {/* Pass Management Section - Alternating Layout */}
         <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionLine} />
+      <Text style={styles.sectionTitle}>Quick Actions</Text>
+    </View>
+  </View>
           <View style={styles.passManagementContainer}>
             {/* Today's Appointments - LEFT ALIGNED */}
             <TouchableOpacity 
@@ -443,7 +458,7 @@ const HomeScreen = ({ navigation }) => {
               </View>
             </TouchableOpacity>
 
-            {/* Make An Appointment - RIGHT ALIGNED */}
+            {/* Make An Appointment - RIGHT ALIGNED with Card + Pencil Icon */}
             <TouchableOpacity 
               style={styles.passRowRight}
               onPress={handleApplyForPass}
@@ -455,9 +470,9 @@ const HomeScreen = ({ navigation }) => {
               </View>
               <View style={styles.passImageBox}>
                 <View style={styles.passImageBackground}>
-                  <Icon name="calendar-plus" size={50} color="#FFFFFF" />
-                  <View style={styles.appointmentPlusIcon}>
-                    <Icon name="plus-circle" size={18} color="#4CAF50" />
+                  <Icon name="card-account-details" size={42} color="#FFFFFF" />
+                  <View style={styles.appointmentPencilIcon}>
+                    <Icon name="pencil" size={16} color="#FFFFFF" />
                   </View>
                 </View>
               </View>
@@ -495,7 +510,7 @@ const HomeScreen = ({ navigation }) => {
               </View>
               <View style={styles.passImageBox}>
                 <View style={styles.passImageBackground}>
-                  <Icon name="account-clock" size={50} color="#FFFFFF" />
+                   <Icon name="badge-account-horizontal" size={36} color="#FFFFFF" />
                   <View style={styles.tempBadge}>
                     <Text style={styles.tempBadgeText}>TEMP</Text>
                   </View>
@@ -505,27 +520,35 @@ const HomeScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Image Banner Section */}
-        <View style={styles.section}>
-          <View style={styles.bannerContainer}>
-            <Image 
-              source={bannerImages[currentImageIndex]} 
-              style={styles.bannerImage}
-              resizeMode="cover"
-            />
-            <View style={styles.bannerDots}>
-              {bannerImages.map((_, index) => (
-                <View 
-                  key={index}
-                  style={[
-                    styles.dot,
-                    currentImageIndex === index && styles.activeDot
-                  ]}
-                />
-              ))}
-            </View>
-          </View>
-        </View>
+       {/* Image Banner Section */}
+<View style={styles.section}>
+  {/* Section Header */}
+  <View style={styles.sectionHeaderRow}>
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionLine} />
+      <Text style={styles.sectionTitle}>Latest Updates</Text>
+    </View>
+  </View>
+
+  <View style={styles.bannerContainer}>
+    <Image 
+      source={bannerImages[currentImageIndex]} 
+      style={styles.bannerImage}
+      resizeMode="cover"
+    />
+    <View style={styles.bannerDots}>
+      {bannerImages.map((_, index) => (
+        <View 
+          key={index}
+          style={[
+            styles.dot,
+            currentImageIndex === index && styles.activeDot
+          ]}
+        />
+      ))}
+    </View>
+  </View>
+</View>
 
         <View style={styles.footer} />
       </ScrollView>
@@ -554,7 +577,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   headerWrapper: {
-    backgroundColor: '#0A2463',
+    backgroundColor: '#3477eb',
     paddingBottom: 2,
   },
   header: {
@@ -886,7 +909,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   drawerHeader: {
-    backgroundColor: '#0A2463',
+    backgroundColor: '#3477eb',
     padding: 20,
     paddingTop: Platform.OS === 'ios' ? 60 : 50,
     flexDirection: 'row',
@@ -940,7 +963,7 @@ const styles = StyleSheet.create({
   },
   menuScroll: {
     flex: 1,
-    backgroundColor: '#0A2463',
+    backgroundColor: '#3477eb',
   },
   menuGroup: {
     paddingVertical: 8,
@@ -1014,7 +1037,7 @@ const styles = StyleSheet.create({
   },
   passManagementContainer: {
     gap: 24,
-    paddingTop: 10,
+    paddingTop: -50,
   },
   passRowLeft: {
     flexDirection: 'row',
@@ -1049,24 +1072,35 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 10,
     right: 10,
-    backgroundColor: '#0A2463',
+    backgroundColor: '#3477eb',
     borderRadius: 12,
     padding: 6,
     borderWidth: 2,
     borderColor: '#FFFFFF',
   },
-  appointmentPlusIcon: {
+  appointmentPencilIcon: {
     position: 'absolute',
     bottom: 10,
     right: 10,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    backgroundColor: '#3477eb',
+    borderRadius: 14,
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#FF9800',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   activeBadge: {
     position: 'absolute',
     top: 10,
     right: 10,
-    backgroundColor: '#0A2463',
+    backgroundColor: '#3477eb',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -1083,7 +1117,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 10,
     right: 10,
-    backgroundColor: '#0A2463',
+    backgroundColor: '#3477eb',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 10,
