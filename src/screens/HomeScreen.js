@@ -19,6 +19,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import Feather from 'react-native-vector-icons/Feather';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+import { checkProfileStatus } from '../constants/services/profileStatusService';
 
 const { width } = Dimensions.get('window');
 
@@ -72,7 +73,7 @@ const HomeScreen = ({ navigation }) => {
 
     // Auto-rotate banner images every 3 seconds
     const imageInterval = setInterval(() => {
-      setCurrentImageIndex((prevIndex) => 
+      setCurrentImageIndex((prevIndex) =>
         (prevIndex + 1) % bannerImages.length
       );
     }, 3000);
@@ -103,16 +104,44 @@ const HomeScreen = ({ navigation }) => {
     }
   }, [drawerVisible]);
 
+  // ── Real-time profile check via API ────────────────────────────────────────
   const loadUserData = async () => {
     try {
-      const storedData = await AsyncStorage.getItem('personalDetails');
-      if (storedData) {
-        const parsedData = JSON.parse(storedData);
-        setUserData(parsedData);
+      setLoading(true);
+
+      // Step 1: Get loginSession saved after login
+      const session = await AsyncStorage.getItem('loginSession');
+      if (!session) {
+        console.warn('No loginSession found — redirecting to profile creation');
+        setUserData(null);
+        setLoading(false);
+        return;
       }
+
+      const { Vis_Reg_No, Name, Mobile, Email } = JSON.parse(session);
+      console.log('Loaded session — Vis_Reg_No:', Vis_Reg_No);
+
+      // Step 2: Call API to check if profile is complete
+      const isComplete = await checkProfileStatus(Vis_Reg_No);
+      console.log('Profile complete?', isComplete);
+
+      if (isComplete) {
+        // Profile complete — try local personalDetails first, fallback to session data
+        const storedData = await AsyncStorage.getItem('personalDetails');
+        if (storedData) {
+          setUserData(JSON.parse(storedData));
+        } else {
+          // Use session data for display (name, email from login response)
+          setUserData({ name: Name, mobile: Mobile, email: Email });
+        }
+      } else {
+        // Profile incomplete — show "Complete Your Profile" screen
+        setUserData(null);
+      }
+
       setLoading(false);
     } catch (error) {
-      console.error('Error loading user data:', error);
+      console.error('Error in loadUserData:', error);
       setLoading(false);
     }
   };
@@ -132,6 +161,7 @@ const HomeScreen = ({ navigation }) => {
       {
         text: 'Logout',
         onPress: async () => {
+          await AsyncStorage.multiRemove(['loginSession', 'userData', 'personalDetails', 'userRole']);
           navigation.reset({
             index: 0,
             routes: [{ name: 'VisitorLogin' }],
@@ -157,7 +187,7 @@ const HomeScreen = ({ navigation }) => {
   };
 
   const MenuOption = ({ iconName, iconLib = 'MaterialCommunityIcons', title, onPress, isDanger = false }) => {
-    const IconComponent = 
+    const IconComponent =
       iconLib === 'Ionicons' ? Ionicons :
       iconLib === 'Feather' ? Feather :
       iconLib === 'MaterialIcons' ? MaterialIcons :
@@ -199,7 +229,7 @@ const HomeScreen = ({ navigation }) => {
     return (
       <View style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor="#0A2463" />
-        
+
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Swagatam</Text>
         </View>
@@ -209,7 +239,7 @@ const HomeScreen = ({ navigation }) => {
             <View style={styles.emptyIcon}>
               <Icon name="account-circle-outline" size={50} color="#FFFFFF" />
             </View>
-            
+
             <Text style={styles.emptyTitle}>Complete Your Profile</Text>
             <Text style={styles.emptyDesc}>
               Create your profile to access all visitor management features
@@ -266,7 +296,7 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.overlay}>
           <Animated.View style={[styles.drawer, { transform: [{ translateX: slideAnim }] }]}>
             <View style={styles.drawerHeader}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.userSection}
                 onPress={handleProfileClick}
                 activeOpacity={0.7}
@@ -297,25 +327,25 @@ const HomeScreen = ({ navigation }) => {
             <ScrollView style={styles.menuScroll} showsVerticalScrollIndicator={false}>
               <View style={styles.menuGroup}>
                 <Text style={styles.menuLabel}>MENU</Text>
-                <MenuOption 
-                  iconName="view-dashboard-outline" 
-                  title="Dashboard" 
-                  onPress={() => { setDrawerVisible(false); navigation.navigate('Dashboard'); }} 
+                <MenuOption
+                  iconName="view-dashboard-outline"
+                  title="Dashboard"
+                  onPress={() => { setDrawerVisible(false); navigation.navigate('Dashboard'); }}
                 />
-                <MenuOption 
-                  iconName="information-outline" 
-                  title="About Swagatam" 
-                  onPress={() => { setDrawerVisible(false); navigation.navigate('AboutSwagatam'); }} 
+                <MenuOption
+                  iconName="information-outline"
+                  title="About Swagatam"
+                  onPress={() => { setDrawerVisible(false); navigation.navigate('AboutSwagatam'); }}
                 />
-                <MenuOption 
-                  iconName="phone-outline" 
-                  title="Contact Us" 
-                  onPress={() => setDrawerVisible(false)} 
+                <MenuOption
+                  iconName="phone-outline"
+                  title="Contact Us"
+                  onPress={() => setDrawerVisible(false)}
                 />
-                <MenuOption 
-                  iconName="help-circle-outline" 
-                  title="Help & Support" 
-                  onPress={() => setDrawerVisible(false)} 
+                <MenuOption
+                  iconName="help-circle-outline"
+                  title="Help & Support"
+                  onPress={() => setDrawerVisible(false)}
                 />
               </View>
 
@@ -323,39 +353,39 @@ const HomeScreen = ({ navigation }) => {
 
               <View style={styles.menuGroup}>
                 <Text style={styles.menuLabel}>OTHER</Text>
-                <MenuOption 
-                  iconName="share-variant-outline" 
-                  title="Share App" 
-                  onPress={() => setDrawerVisible(false)} 
+                <MenuOption
+                  iconName="share-variant-outline"
+                  title="Share App"
+                  onPress={() => setDrawerVisible(false)}
                 />
-                <MenuOption 
-                  iconName="star-outline" 
-                  title="Rate Us" 
-                  onPress={() => setDrawerVisible(false)} 
+                <MenuOption
+                  iconName="star-outline"
+                  title="Rate Us"
+                  onPress={() => setDrawerVisible(false)}
                 />
-                <MenuOption 
-                  iconName="cellphone-information" 
-                  title="App Info" 
-                  onPress={() => setDrawerVisible(false)} 
+                <MenuOption
+                  iconName="cellphone-information"
+                  title="App Info"
+                  onPress={() => setDrawerVisible(false)}
                 />
               </View>
 
               <View style={styles.divider} />
-              
+
               <View style={styles.menuGroup}>
-                <MenuOption 
-                  iconName="logout" 
-                  title="Logout" 
-                  onPress={handleLogout} 
-                  isDanger={true} 
+                <MenuOption
+                  iconName="logout"
+                  title="Logout"
+                  onPress={handleLogout}
+                  isDanger={true}
                 />
               </View>
 
               <Text style={styles.version}>v2.1.0</Text>
             </ScrollView>
           </Animated.View>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.overlayTouch}
             activeOpacity={1}
             onPress={() => setDrawerVisible(false)}
@@ -375,7 +405,7 @@ const HomeScreen = ({ navigation }) => {
             <TouchableOpacity onPress={openDrawer} style={styles.menuBtn}>
               <Feather name="menu" size={24} color="#FFFFFF" />
             </TouchableOpacity>
-            
+
             <View style={styles.headerCenter}>
               <Text style={styles.headerTitle}>Swagatam</Text>
             </View>
@@ -403,9 +433,9 @@ const HomeScreen = ({ navigation }) => {
               </View>
               <View style={styles.greenStripe} />
             </View>
-            
+
             <View style={styles.taglineContentRibbon}>
-              <Animated.View 
+              <Animated.View
                 style={[
                   styles.namasteIconSmall,
                   { transform: [{ rotate: namasteRotate }] }
@@ -413,7 +443,7 @@ const HomeScreen = ({ navigation }) => {
               >
                 <Text style={styles.namasteEmojiSmall}>🙏</Text>
               </Animated.View>
-              
+
               <View style={styles.textRibbon}>
                 <Text style={styles.greetingRibbon}>
                   Namaste <Text style={styles.nameRibbon}>{getFirstName(userData?.name)}</Text>
@@ -424,7 +454,7 @@ const HomeScreen = ({ navigation }) => {
                 </Text>
               </View>
             </View>
-            
+
             <View style={styles.ribbonTail} />
           </View>
         </View>
@@ -432,14 +462,14 @@ const HomeScreen = ({ navigation }) => {
         {/* Pass Management Section - Alternating Layout */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
-    <View style={styles.sectionHeader}>
-      <View style={styles.sectionLine} />
-      <Text style={styles.sectionTitle}>Quick Actions</Text>
-    </View>
-  </View>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionLine} />
+              <Text style={styles.sectionTitle}>Quick Actions</Text>
+            </View>
+          </View>
           <View style={styles.passManagementContainer}>
             {/* Today's Appointments - LEFT ALIGNED */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.passRowLeft}
               onPress={() => navigation.navigate('TodaysPass')}
               activeOpacity={0.85}
@@ -458,8 +488,8 @@ const HomeScreen = ({ navigation }) => {
               </View>
             </TouchableOpacity>
 
-            {/* Make An Appointment - RIGHT ALIGNED with Card + Pencil Icon */}
-            <TouchableOpacity 
+            {/* Make An Appointment - RIGHT ALIGNED */}
+            <TouchableOpacity
               style={styles.passRowRight}
               onPress={handleApplyForPass}
               activeOpacity={0.85}
@@ -479,7 +509,7 @@ const HomeScreen = ({ navigation }) => {
             </TouchableOpacity>
 
             {/* My Active Passes - LEFT ALIGNED */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.passRowLeft}
               onPress={() => navigation.navigate('MyActivePasses')}
               activeOpacity={0.85}
@@ -499,7 +529,7 @@ const HomeScreen = ({ navigation }) => {
             </TouchableOpacity>
 
             {/* Apply For Temporary Pass - RIGHT ALIGNED */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.passRowRight}
               onPress={() => navigation.navigate('TemporaryPass')}
               activeOpacity={0.85}
@@ -510,7 +540,7 @@ const HomeScreen = ({ navigation }) => {
               </View>
               <View style={styles.passImageBox}>
                 <View style={styles.passImageBackground}>
-                   <Icon name="badge-account-horizontal" size={36} color="#FFFFFF" />
+                  <Icon name="badge-account-horizontal" size={36} color="#FFFFFF" />
                   <View style={styles.tempBadge}>
                     <Text style={styles.tempBadgeText}>TEMP</Text>
                   </View>
@@ -520,35 +550,34 @@ const HomeScreen = ({ navigation }) => {
           </View>
         </View>
 
-       {/* Image Banner Section */}
-<View style={styles.section}>
-  {/* Section Header */}
-  <View style={styles.sectionHeaderRow}>
-    <View style={styles.sectionHeader}>
-      <View style={styles.sectionLine} />
-      <Text style={styles.sectionTitle}>Latest Updates</Text>
-    </View>
-  </View>
+        {/* Image Banner Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionLine} />
+              <Text style={styles.sectionTitle}>Latest Updates</Text>
+            </View>
+          </View>
 
-  <View style={styles.bannerContainer}>
-    <Image 
-      source={bannerImages[currentImageIndex]} 
-      style={styles.bannerImage}
-      resizeMode="cover"
-    />
-    <View style={styles.bannerDots}>
-      {bannerImages.map((_, index) => (
-        <View 
-          key={index}
-          style={[
-            styles.dot,
-            currentImageIndex === index && styles.activeDot
-          ]}
-        />
-      ))}
-    </View>
-  </View>
-</View>
+          <View style={styles.bannerContainer}>
+            <Image
+              source={bannerImages[currentImageIndex]}
+              style={styles.bannerImage}
+              resizeMode="cover"
+            />
+            <View style={styles.bannerDots}>
+              {bannerImages.map((_, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.dot,
+                    currentImageIndex === index && styles.activeDot
+                  ]}
+                />
+              ))}
+            </View>
+          </View>
+        </View>
 
         <View style={styles.footer} />
       </ScrollView>

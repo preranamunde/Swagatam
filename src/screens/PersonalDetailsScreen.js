@@ -6,8 +6,10 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import DocumentPicker from 'react-native-document-picker';
+import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { completeProfile } from '../constants/services/visitorRegisterService';
+import { completeProfile, compressPhotoUri } from '../constants/services/visitorRegisterService';
 import { getStateCode, getIdTypeCode } from '../constants/stateCodes';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -19,10 +21,25 @@ const IDENTITY_PROOF_OPTIONS = [
 ];
 
 const OCCUPATION_OPTIONS = [
-  'SELECT', 'BUSINESS', 'CHARTERED ACCOUNTANT', 'DOCTOR', 'ENGINEER', 'FARMER',
-  'GOVT. SERVICE', 'HOME MAKER', 'HOUSE WIFE', 'JOURNALIST (ACCREDITED)',
-  'JOURNALIST (NON-ACCREDITED)', 'LAWYER', 'MISC-ANY-OTHER', 'PARAMEDICAL',
-  'POLICE', 'PRIVATE SERVICE', 'RETIRED', 'STUDENT', 'TEACHER',
+  { label: 'SELECT',                        value: 'SELECT' },
+  { label: 'BUSINESS',                      value: 'Business' },
+  { label: 'CHARTERED ACCOUNTANT',          value: 'Chartered Accountant' },
+  { label: 'DOCTOR',                        value: 'Doctor' },
+  { label: 'ENGINEER',                      value: 'Engineer' },
+  { label: 'FARMER',                        value: 'Farmer' },
+  { label: 'GOVT. SERVICE',                 value: 'Govt. Service' },
+  { label: 'HOME MAKER',                    value: 'Home Maker' },
+  { label: 'HOUSE WIFE',                    value: 'House Wife' },
+  { label: 'JOURNALIST (ACCREDITED)',       value: 'Journalist (Accredited)' },
+  { label: 'JOURNALIST (NON-ACCREDITED)',   value: 'Journalist (Non-Accredited)' },
+  { label: 'LAWYER',                        value: 'Lawyer' },
+  { label: 'MISC-ANY-OTHER',               value: 'Misc-Any-Other' },
+  { label: 'PARAMEDICAL',                   value: 'Paramedical' },
+  { label: 'POLICE',                        value: 'Police' },
+  { label: 'PRIVATE SERVICE',               value: 'Private Service' },
+  { label: 'RETIRED',                       value: 'Retired' },
+  { label: 'STUDENT',                       value: 'Student' },
+  { label: 'TEACHER',                       value: 'Teacher' },
 ];
 
 const STATE_OPTIONS = [
@@ -37,9 +54,7 @@ const STATE_OPTIONS = [
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
-// base64 is captured directly from image picker (includeBase64: true) — no fetch needed
-
-/** Format a JS Date as DD/MM/YYYY for display */
+/** Format JS Date → DD/MM/YYYY for display */
 const formatDate = (date) => {
   if (!date) return '';
   return [
@@ -49,7 +64,7 @@ const formatDate = (date) => {
   ].join('/');
 };
 
-/** Format a JS Date as YYYY-MM-DD for the API */
+/** Format JS Date → YYYY-MM-DD for API */
 const formatDateForAPI = (date) => {
   if (!date) return '';
   return [
@@ -59,8 +74,19 @@ const formatDateForAPI = (date) => {
   ].join('-');
 };
 
-/** Map gender label → API single character */
+/** Map gender label → API character */
 const mapGender = (g) => ({ MALE: 'M', FEMALE: 'F', OTHER: 'O' }[g] ?? '');
+
+/**
+ * Sanitize name for API.
+ * API accepts: alpha characters + dot only. No spaces, no digits, no other specials.
+ */
+const sanitizeName = (fullName = '') => {
+  return fullName.trim().replace(/[^A-Za-z.]/g, '');
+};
+
+/** Calculate KB from base64 string */
+const b64ToKB = (b64) => (b64.replace(/=/g, '').length * 0.75) / 1024;
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
@@ -85,12 +111,12 @@ const PersonalDetailsScreen = ({ navigation, route }) => {
     permanentPincode:    '',
   });
 
-  const [showIdProofNumber,   setShowIdProofNumber]   = useState(false);
+  const [showIdProofNumber,    setShowIdProofNumber]    = useState(false);
   const [isDeclarationChecked, setIsDeclarationChecked] = useState(false);
-  const [showDatePicker,      setShowDatePicker]      = useState(false);
-  const [isSubmitting,        setIsSubmitting]        = useState(false);
+  const [showDatePicker,       setShowDatePicker]       = useState(false);
+  const [isSubmitting,         setIsSubmitting]         = useState(false);
 
-  // Upload state — uri for display, base64 for API
+  // Upload state
   const [photoUploaded,     setPhotoUploaded]     = useState(false);
   const [photoUri,          setPhotoUri]          = useState(null);
   const [photoBase64,       setPhotoBase64]       = useState('');
@@ -99,11 +125,11 @@ const PersonalDetailsScreen = ({ navigation, route }) => {
   const [documentUploaded,  setDocumentUploaded]  = useState(false);
   const [documentUri,       setDocumentUri]       = useState(null);
   const [documentBase64,    setDocumentBase64]    = useState('');
+  const [documentName,      setDocumentName]      = useState('');  // ✅ NEW: store PDF filename
 
-  // Modal state
+  // Modal state (photo & signature only — document uses DocumentPicker directly)
   const [showPhotoModal,     setShowPhotoModal]     = useState(false);
   const [showSignatureModal, setShowSignatureModal] = useState(false);
-  const [showDocumentModal,  setShowDocumentModal]  = useState(false);
 
   // ── Edit mode pre-fill ──
   useEffect(() => {
@@ -142,105 +168,229 @@ const PersonalDetailsScreen = ({ navigation, route }) => {
     if (selectedDate) handleInputChange('dateOfBirth', selectedDate);
   };
 
-  // includeBase64:true → picker returns base64 directly, no fetch() on file:// URI needed
-  const handleMediaOption = (option, onSuccess) => {
-    const opts = { mediaType: 'photo', quality: 0.5, saveToPhotos: false, includeBase64: true };
-    const cb   = (response) => {
-      if (response.assets?.[0]) {
-        const asset = response.assets[0];
-        onSuccess(asset.uri, asset.base64 ?? '');
-      }
-    };
-    option === 'camera' ? launchCamera(opts, cb) : launchImageLibrary(opts, cb);
+  // ── Image picker (photo & signature only) ──
+  const pickerOptions = {
+    mediaType:     'photo',
+    quality:       0.3,
+    saveToPhotos:  false,
+    includeBase64: true,
   };
 
-  const handlePhotoOption    = (opt) => { setShowPhotoModal(false);     handleMediaOption(opt, (uri, b64) => { setPhotoUri(uri);     setPhotoBase64(b64);    setPhotoUploaded(true);     }); };
-  const handleSignatureOption = (opt) => { setShowSignatureModal(false); handleMediaOption(opt, (uri)       => { setSignatureUri(uri);                          setSignatureUploaded(true); }); };
-  const handleDocumentOption  = (opt) => { setShowDocumentModal(false);  handleMediaOption(opt, (uri, b64) => { setDocumentUri(uri);  setDocumentBase64(b64); setDocumentUploaded(true);  }); };
+  const handleMediaOption = (option, onSuccess) => {
+    const cb = (response) => {
+      if (response.didCancel || response.errorCode) return;
+      const asset = response.assets?.[0];
+      if (asset) onSuccess(asset.uri, asset.base64 ?? '');
+    };
+    option === 'camera'
+      ? launchCamera(pickerOptions, cb)
+      : launchImageLibrary(pickerOptions, cb);
+  };
+
+  const handlePhotoOption = (opt) => {
+    setShowPhotoModal(false);
+    handleMediaOption(opt, (uri, b64) => {
+      setPhotoUri(uri);
+      setPhotoBase64(b64);
+      setPhotoUploaded(true);
+      console.log(`📷 Photo picked — raw base64: ${b64ToKB(b64).toFixed(1)} KB`);
+    });
+  };
+
+  const handleSignatureOption = (opt) => {
+    setShowSignatureModal(false);
+    handleMediaOption(opt, (uri) => {
+      setSignatureUri(uri);
+      setSignatureUploaded(true);
+    });
+  };
+
+  // ── ✅ NEW: PDF Document Picker ──
+  // Opens native file browser, PDF only, reads as base64 via RNFS
+  const handleDocumentUpload = async () => {
+    try {
+      const result = await DocumentPicker.pickSingle({
+        type: [DocumentPicker.types.pdf],
+        copyTo: 'cachesDirectory', // ensures readable URI on Android
+      });
+
+      const fileUri = result.fileCopyUri || result.uri;
+      console.log(`📄 PDF selected: ${result.name} | URI: ${fileUri}`);
+
+      // Read file as base64 using react-native-fs
+      const base64 = await RNFS.readFile(fileUri, 'base64');
+
+      const docKB = b64ToKB(base64);
+      console.log(`📄 PDF size: ${docKB.toFixed(1)} KB`);
+
+      // Validate size — API limit is 400 KB
+      if (docKB > 400) {
+        Alert.alert(
+          'Document Too Large',
+          `PDF is ${docKB.toFixed(1)} KB. Maximum allowed is 400 KB.\n\nPlease choose a smaller PDF file.`,
+        );
+        return;
+      }
+
+      setDocumentUri(fileUri);
+      setDocumentBase64(base64);
+      setDocumentName(result.name || 'document.pdf');
+      setDocumentUploaded(true);
+
+    } catch (err) {
+      if (DocumentPicker.isCancel(err)) {
+        // User cancelled — do nothing
+        return;
+      }
+      console.error('❌ Document picker error:', err);
+      Alert.alert('Error', 'Could not read the PDF file. Please try again.');
+    }
+  };
 
   // ── Validation ──
   const validate = () => {
     const f = formData;
-    if (!f.name.trim())                         return 'Name is required';
-    if (!f.fatherHusbandName.trim())            return "Father/Husband name is required";
-    if (!f.gender || f.gender === 'SELECT')     return 'Please select a gender';
-    if (!f.dateOfBirth)                         return 'Date of birth is required';
-    if (!f.identityProof || f.identityProof === 'SELECT') return 'Please select an identity proof type';
-    if (!f.identityProofNumber.trim())          return 'Identity proof number is required';
-    if (!f.email.trim())                        return 'Email is required';
-    if (!f.occupation || f.occupation === 'SELECT') return 'Please select an occupation';
-    if (!f.presentAddress.trim())               return 'Present address is required';
-    if (!f.presentLandmarks.trim())             return 'Present landmark is required';
-    if (!f.presentState || f.presentState === 'SELECT') return 'Please select present state';
+    if (!f.name.trim())                                    return 'Name is required';
+    if (!f.fatherHusbandName.trim())                       return 'Father/Husband name is required';
+    if (!/^[A-Za-z.]+$/.test(sanitizeName(f.name)))        return 'Name must contain alphabets and dot only (no spaces or special characters)';
+    if (!/^[A-Za-z.]+$/.test(sanitizeName(f.fatherHusbandName))) return 'Father/Husband name must contain alphabets and dot only';
+    if (!f.gender || f.gender === 'SELECT')                return 'Please select a gender';
+    if (!f.dateOfBirth)                                    return 'Date of birth is required';
+    if (f.dateOfBirth > new Date())                        return 'Date of birth cannot be a future date';
+    if (!f.identityProof || f.identityProof === 'SELECT')  return 'Please select an identity proof type';
+    if (!f.identityProofNumber.trim())                     return 'Identity proof number is required';
+    if (!f.email.trim())                                   return 'Email is required';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) return 'Please enter a valid email address';
+    if (!f.occupation || f.occupation === 'SELECT')        return 'Please select an occupation';
+    if (!f.presentAddress.trim())                          return 'Present address is required';
+    if (!f.presentLandmarks.trim())                        return 'Present landmark is required';
+    if (!/^[A-Za-z ]+$/.test(f.presentLandmarks.trim()))  return 'Present landmark must contain alphabets only (no numbers)';
+    if (!f.presentState || f.presentState === 'SELECT')    return 'Please select present state';
     if (!f.presentPincode || f.presentPincode.length !== 6) return 'Present pincode must be 6 digits';
-    if (!f.permanentAddress.trim())             return 'Permanent address is required';
-    if (!f.permanentLandmarks.trim())           return 'Permanent landmark is required';
+    if (!f.permanentAddress.trim())                        return 'Permanent address is required';
+    if (!f.permanentLandmarks.trim())                      return 'Permanent landmark is required';
+    if (!/^[A-Za-z ]+$/.test(f.permanentLandmarks.trim())) return 'Permanent landmark must contain alphabets only (no numbers)';
     if (!f.permanentState || f.permanentState === 'SELECT') return 'Please select permanent state';
     if (!f.permanentPincode || f.permanentPincode.length !== 6) return 'Permanent pincode must be 6 digits';
-    if (!photoUploaded)                         return 'Please upload your photo';
-    if (!documentUploaded)                      return 'Please upload your ID document';
-    if (!isDeclarationChecked)                  return 'Please accept the declaration';
+    if (!photoUploaded)                                    return 'Please upload your photo';
+    if (!documentUploaded)                                 return 'Please upload your ID document (PDF)';
+    if (!isDeclarationChecked)                             return 'Please accept the declaration';
     return null;
   };
 
   // ── Submit ──
   const handleSubmit = async () => {
-    const error = validate();
-    if (error) { Alert.alert('Validation Error', error); return; }
-
-    // TODO: replace with session values when backend is ready
-    const visNo  = 1192563;
-    const visMob = '9146158801';
+    const validationError = validate();
+    if (validationError) { Alert.alert('Validation Error', validationError); return; }
 
     setIsSubmitting(true);
     try {
-      // Persist locally
+      // ── 1. Load session ──────────────────────────────────────────────────────
+      const sessionRaw = await AsyncStorage.getItem('loginSession');
+      const session    = sessionRaw ? JSON.parse(sessionRaw) : null;
+
+      const userRaw = !session ? await AsyncStorage.getItem('userData') : null;
+      const user    = userRaw ? JSON.parse(userRaw) : null;
+
+      const visNo  = session?.Vis_Reg_No ?? user?.Vis_Reg_No;
+      const visMob = session?.Mobile     ?? user?.Mobile;
+
+      if (!visNo || !visMob) {
+        Alert.alert('Session Error', 'Could not find your registration number. Please logout and login again.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      console.log('🔑 Session VisNo:', visNo, '| VisMob:', visMob);
+
+      // ── 2. Persist form data locally ────────────────────────────────────────
       const dataToSave = { ...formData, photoUri, signatureUri, documentUri };
       await AsyncStorage.setItem('personalDetails', JSON.stringify(dataToSave));
-      console.log('📋 Saved to AsyncStorage');
 
-      // base64 already captured by image picker (includeBase64: true) — no conversion needed
-      console.log('🖼️ Photo base64 length:', photoBase64.length);
-      console.log('📄 Document base64 length:', documentBase64.length);
-      if (!photoBase64)    { Alert.alert('Error', 'Photo data missing. Please re-upload your photo.');         setIsSubmitting(false); return; }
-      if (!documentBase64) { Alert.alert('Error', 'Document data missing. Please re-upload your ID document.'); setIsSubmitting(false); return; }
+      // ── 3. Compress photo to < 20 KB ────────────────────────────────────────
+      let compressedPhotoBase64 = '';
+      if (photoUri) {
+        console.log('🗜️ Compressing photo...');
+        compressedPhotoBase64 = await compressPhotoUri(photoUri, photoBase64);
+        const finalKB = b64ToKB(compressedPhotoBase64);
+        console.log(`📸 Final photo size before API: ${finalKB.toFixed(1)} KB`);
 
+        if (finalKB > 20) {
+          Alert.alert(
+            'Photo Too Large',
+            `Photo is ${finalKB.toFixed(1)} KB after compression. Maximum allowed is 20 KB.\n\nPlease choose a smaller or simpler photo.`,
+          );
+          setIsSubmitting(false);
+          return;
+        }
+      } else {
+        Alert.alert('Error', 'Photo URI missing. Please re-upload your photo.');
+        setIsSubmitting(false);
+        return;
+      }
 
-      // Map display values → API codes
+      // ── 4. Validate document ─────────────────────────────────────────────────
+      if (!documentBase64) {
+        Alert.alert('Error', 'Document data missing. Please re-upload your ID document.');
+        setIsSubmitting(false);
+        return;
+      }
+      const docKB = b64ToKB(documentBase64);
+      console.log(`📄 Document size: ${docKB.toFixed(1)} KB`);
+
+      if (docKB > 400) {
+        Alert.alert('Document Too Large', `Document is ${docKB.toFixed(1)} KB. Maximum allowed is 400 KB.`);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // ── 5. Map display values → API codes ───────────────────────────────────
       const presentStateCode   = getStateCode(formData.presentState);
-      const permanentStateCode  = getStateCode(formData.permanentState);
-      const idTypeCode          = getIdTypeCode(formData.identityProof);
+      const permanentStateCode = getStateCode(formData.permanentState);
+      const idTypeCode         = getIdTypeCode(formData.identityProof);
 
-      if (!presentStateCode)  { Alert.alert('Error', 'Invalid present state selected');   setIsSubmitting(false); return; }
-      if (!permanentStateCode){ Alert.alert('Error', 'Invalid permanent state selected'); setIsSubmitting(false); return; }
-      if (!idTypeCode)        { Alert.alert('Error', 'Invalid identity proof type');      setIsSubmitting(false); return; }
+      if (!presentStateCode)   { Alert.alert('Error', 'Invalid present state selected');   setIsSubmitting(false); return; }
+      if (!permanentStateCode) { Alert.alert('Error', 'Invalid permanent state selected'); setIsSubmitting(false); return; }
+      if (!idTypeCode)         { Alert.alert('Error', 'Invalid identity proof type');      setIsSubmitting(false); return; }
 
-      console.log('📤 State codes:', { presentStateCode, permanentStateCode, idTypeCode });
+      const occupationValue = OCCUPATION_OPTIONS.find(
+        (o) => o.value === formData.occupation || o.label === formData.occupation,
+      )?.value ?? formData.occupation;
 
-      const result  = await completeProfile({
+      console.log('📤 Mapped values:', { presentStateCode, permanentStateCode, idTypeCode, occupationValue });
+
+      // ── 6. Sanitize names ────────────────────────────────────────────────────
+      const visName  = sanitizeName(formData.name);
+      const visFName = sanitizeName(formData.fatherHusbandName);
+
+      console.log('👤 Sanitized names:', { visName, visFName });
+
+      // ── 7. Call API ──────────────────────────────────────────────────────────
+      const result = await completeProfile({
         visNo,
         visMob,
-        visName:              formData.name.trim(),
-        visFName:             formData.fatherHusbandName.trim(),
+        visName,
+        visFName,
         visdob:               formatDateForAPI(formData.dateOfBirth),
         visGender:            mapGender(formData.gender),
         visemail:             formData.email.trim(),
-        visIdType:            idTypeCode,           // e.g. '1', '2' … '5'
+        visIdType:            idTypeCode,
         visIddetails:         formData.identityProofNumber.trim(),
-        occupation:           formData.occupation,
+        occupation:           occupationValue,
         visPresentAddress:    formData.presentAddress.trim(),
         presentLandmark:      formData.presentLandmarks.trim(),
-        visPresentState:      presentStateCode,     // e.g. '27' for MAHARASHTRA
+        visPresentState:      presentStateCode,
         visPinCode:           formData.presentPincode,
         visPermanentAddress:  formData.permanentAddress.trim(),
         visPermanentLandmark: formData.permanentLandmarks.trim(),
         visPermanentState:    permanentStateCode,
         visPermanentPincode:  formData.permanentPincode,
-        photoBase64,
-        documentBase64,
+        photoBase64:    compressedPhotoBase64,
+        documentBase64: documentBase64,
       });
 
       console.log('✅ API Response:', JSON.stringify(result, null, 2));
+
       const message = result?.[0]?.Result ?? 'No response from server';
 
       if (message.toLowerCase().includes('success')) {
@@ -248,12 +398,10 @@ const PersonalDetailsScreen = ({ navigation, route }) => {
           { text: 'OK', onPress: () => navigation.navigate('Home') },
         ]);
       } else {
-        // Server responded but with a non-success message
-        Alert.alert('Submission Failed', message);
+        Alert.alert('Submission Failed ⚠️', message);
       }
     } catch (err) {
       console.error('❌ Submit error:', err);
-      // Show the actual server error message clearly
       Alert.alert('Error ❌', err.message);
     } finally {
       setIsSubmitting(false);
@@ -269,7 +417,7 @@ const PersonalDetailsScreen = ({ navigation, route }) => {
 
   const renderRedStar = () => <Text style={styles.redStar}>*</Text>;
 
-  // ── Upload Modal ──
+  // ── Upload Modal (photo & signature only) ──
   const UploadModal = ({ visible, onClose, onCamera, onGallery, title }) => (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose}>
@@ -317,26 +465,29 @@ const PersonalDetailsScreen = ({ navigation, route }) => {
       >
         {/* ── Personal Information ── */}
         <View style={styles.section}>
+
           <View style={styles.formGroup}>
             <Text style={styles.label}>Name {renderRedStar()}</Text>
             <TextInput
               style={styles.textInput}
-              placeholder="Enter your full name"
+              placeholder="Enter your full name (alphabets and dot only)"
               placeholderTextColor="#94A3B8"
               value={formData.name}
               onChangeText={(v) => handleInputChange('name', v)}
             />
+            <Text style={styles.fieldHint}>Spaces will be removed automatically (API rule)</Text>
           </View>
 
           <View style={styles.formGroup}>
             <Text style={styles.label}>Father/Husband Name {renderRedStar()}</Text>
             <TextInput
               style={styles.textInput}
-              placeholder="Enter father/husband name"
+              placeholder="Enter father/husband name (alphabets and dot only)"
               placeholderTextColor="#94A3B8"
               value={formData.fatherHusbandName}
               onChangeText={(v) => handleInputChange('fatherHusbandName', v)}
             />
+            <Text style={styles.fieldHint}>Spaces will be removed automatically (API rule)</Text>
           </View>
 
           <View style={styles.formGroup}>
@@ -434,7 +585,7 @@ const PersonalDetailsScreen = ({ navigation, route }) => {
                 dropdownIconColor="#000000"
               >
                 {OCCUPATION_OPTIONS.map((opt, i) => (
-                  <Picker.Item key={i} label={opt} value={opt} />
+                  <Picker.Item key={i} label={opt.label} value={opt.value} />
                 ))}
               </Picker>
             </View>
@@ -460,7 +611,7 @@ const PersonalDetailsScreen = ({ navigation, route }) => {
             <Text style={styles.label}>Landmarks {renderRedStar()}</Text>
             <TextInput
               style={styles.textInput}
-              placeholder="Enter nearby landmarks (alphabets only)"
+              placeholder="e.g. Near School (alphabets only)"
               placeholderTextColor="#94A3B8"
               value={formData.presentLandmarks}
               onChangeText={(v) => handleInputChange('presentLandmarks', v)}
@@ -514,7 +665,7 @@ const PersonalDetailsScreen = ({ navigation, route }) => {
             <Text style={styles.label}>Landmarks {renderRedStar()}</Text>
             <TextInput
               style={styles.textInput}
-              placeholder="Enter nearby landmarks (alphabets only)"
+              placeholder="e.g. Near Metro Station (alphabets only)"
               placeholderTextColor="#94A3B8"
               value={formData.permanentLandmarks}
               onChangeText={(v) => handleInputChange('permanentLandmarks', v)}
@@ -553,9 +704,11 @@ const PersonalDetailsScreen = ({ navigation, route }) => {
         <View style={styles.section}>
           <Text style={styles.sectionHeader}>Photo & ID Document Upload</Text>
           <Text style={styles.uploadHint}>
-            ⚠️ Photo: JPG/PNG/BMP under 20 KB • ID Document: PDF under 400 KB
+            ⚠️ Photo: JPG/PNG/BMP — must be under 20 KB (auto-compressed){'\n'}
+            ID Document: PDF only, must be under 400 KB
           </Text>
 
+          {/* Photo Upload */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Upload Photo {renderRedStar()}</Text>
             <TouchableOpacity
@@ -569,6 +722,7 @@ const PersonalDetailsScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
 
+          {/* Signature Upload */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Upload Scanned Signature</Text>
             <TouchableOpacity
@@ -582,17 +736,23 @@ const PersonalDetailsScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
 
+          {/* ✅ PDF Document Upload — opens native file browser directly */}
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Upload ID Document {renderRedStar()}</Text>
+            <Text style={styles.label}>Upload ID Document (PDF) {renderRedStar()}</Text>
             <TouchableOpacity
               style={[styles.uploadButtonFull, documentUploaded && styles.uploadButtonSuccess]}
-              onPress={() => setShowDocumentModal(true)}
+              onPress={handleDocumentUpload}
+              activeOpacity={0.8}
             >
               <Text style={styles.uploadIcon}>📄</Text>
               <Text style={styles.uploadButtonText}>
-                {documentUploaded ? 'Document Uploaded ✓' : 'Upload ID Document'}
+                {documentUploaded
+                  ? `Document Uploaded ✓\n${documentName}`
+                  : 'Browse & Upload PDF'}
               </Text>
             </TouchableOpacity>
+            {/* ✅ Helper text so user knows only PDF is accepted */}
+            <Text style={styles.fieldHint}>Only PDF files are accepted. Max size: 400 KB.</Text>
           </View>
         </View>
 
@@ -665,7 +825,7 @@ const PersonalDetailsScreen = ({ navigation, route }) => {
         <View style={styles.bottomPadding} />
       </ScrollView>
 
-      {/* ── Upload Modals ── */}
+      {/* ── Upload Modals (photo & signature only) ── */}
       <UploadModal
         visible={showPhotoModal}
         onClose={() => setShowPhotoModal(false)}
@@ -680,13 +840,7 @@ const PersonalDetailsScreen = ({ navigation, route }) => {
         onGallery={() => handleSignatureOption('gallery')}
         title="Upload Signature"
       />
-      <UploadModal
-        visible={showDocumentModal}
-        onClose={() => setShowDocumentModal(false)}
-        onCamera={() => handleDocumentOption('camera')}
-        onGallery={() => handleDocumentOption('gallery')}
-        title="Upload ID Document"
-      />
+      {/* ✅ No modal for document — DocumentPicker opens native file browser directly */}
     </View>
   );
 };
@@ -707,6 +861,7 @@ const styles = StyleSheet.create({
   formGroup:             { marginBottom: 20 },
   label:                 { fontSize: 14, fontWeight: '600', color: '#334155', marginBottom: 8, letterSpacing: 0.2 },
   redStar:               { color: '#EF4444', fontSize: 14 },
+  fieldHint:             { fontSize: 11, color: '#94A3B8', marginTop: 4 },
   uploadHint:            { fontSize: 12, color: '#EF4444', marginBottom: 16, lineHeight: 18 },
   textInput:             { backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1.5, borderColor: '#E2E8F0', paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, color: '#0F172A' },
   textArea:              { height: 80, textAlignVertical: 'top', paddingTop: 14 },
