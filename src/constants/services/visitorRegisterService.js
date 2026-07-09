@@ -130,53 +130,23 @@ const callSwagatamAPI = async (url, innerPayload) => {
 };
 
 // ─── Photo Compression ─────────────────────────────────────────────────────────
-//
-// Strategy (in order of priority):
-//
-//   Tier 1 — expo-image-manipulator
-//             Resizes to max 150px width, iterates quality down until < 20 KB.
-//             Most reliable in Expo managed/bare workflow.
-//
-//   Tier 2 — react-native-image-resizer + react-native-fs
-//             Resizes and re-reads from disk. For bare RN without Expo.
-//
-//   Tier 3 — Canvas API via react-native-canvas (if available)
-//             Uses actual JPEG re-encoding at lower quality.
-//
-//   Tier 4 — Pure-JS pixel sampling
-//             Reads every N-th pixel from the raw base64 JPEG scan data
-//             to create a drastically smaller representation.
-//             Last resort — no native module required.
-//
-// @param {string} uri      - file:// URI from image picker
-// @param {string} [rawB64] - pre-read base64 from picker (asset.base64)
-// @returns {Promise<string>} base64 string, guaranteed ≤ 20 KB
-// ──────────────────────────────────────────────────────────────────────────────
 
 const MAX_PHOTO_KB = 20;
 
-/**
- * Calculate approximate KB from a base64 string.
- */
 const b64ToKB = (b64) => (b64.replace(/=/g, '').length * 0.75) / 1024;
 
 export const compressPhotoUri = async (uri, rawB64 = null) => {
   console.log('🗜️ Starting photo compression — target:', MAX_PHOTO_KB, 'KB');
 
   // ── Tier 1: expo-image-manipulator ──────────────────────────────────────────
-  // This is the MOST RELIABLE tier. It uses native JPEG re-encoding.
-  // Resizes to 150px width first (drastically reduces size), then reduces quality.
   try {
     const ImageManipulator = require('expo-image-manipulator');
-    // Support both old API (manipulateAsync) and new API (ImageManipulator.manipulate)
     const manipulate = ImageManipulator.manipulateAsync
       ?? ImageManipulator.default?.manipulateAsync;
 
     if (typeof manipulate === 'function') {
       console.log('Tier 1: expo-image-manipulator available');
 
-      // Start with small size (150px) + quality 0.4
-      // This alone usually gets well under 20 KB for passport-style photos
       const qualitySteps = [0.4, 0.3, 0.2, 0.15, 0.1, 0.07, 0.05];
       const widthSteps   = [150, 120, 100, 80,  60,  50,   40];
 
@@ -184,11 +154,7 @@ export const compressPhotoUri = async (uri, rawB64 = null) => {
         const result = await manipulate(
           uri,
           [{ resize: { width: widthSteps[i] } }],
-          {
-            compress: qualitySteps[i],
-            format:   'jpeg',
-            base64:   true,
-          },
+          { compress: qualitySteps[i], format: 'jpeg', base64: true },
         );
 
         if (!result.base64) continue;
@@ -249,13 +215,6 @@ export const compressPhotoUri = async (uri, rawB64 = null) => {
   }
 
   // ── Tier 3: Pure-JS aggressive pixel-drop compression ───────────────────────
-  // When no native module is available, we do a brutal but effective approach:
-  // Decode the base64 → find the JPEG scan data → keep only every N-th row of
-  // pixel data → re-encode. This achieves true size reduction (not just metadata
-  // stripping) without any native canvas/codec.
-  //
-  // NOTE: The output is a valid but visually degraded JPEG. For a visitor ID
-  // photo thumbnail (tiny stamp on a form), this is fully acceptable.
   console.log('🔧 Tier 3: Pure-JS aggressive compression');
 
   let sourceB64 = rawB64;
@@ -278,9 +237,7 @@ export const compressPhotoUri = async (uri, rawB64 = null) => {
     );
   }
 
-  // Clean data-URI prefix if present
   const cleanB64 = sourceB64.replace(/^data:[^;]+;base64,/, '');
-
   const initialKB = b64ToKB(cleanB64);
   console.log(`  Tier 3: Input size: ${initialKB.toFixed(1)} KB`);
 
@@ -289,24 +246,19 @@ export const compressPhotoUri = async (uri, rawB64 = null) => {
     return cleanB64;
   }
 
-  // Calculate how aggressively we need to downsample
-  // ratio = how many bytes we need to discard
   const ratio = Math.ceil(initialKB / MAX_PHOTO_KB);
   console.log(`  Tier 3: Need to reduce by ~${ratio}x — sampling every ${ratio}-th byte in scan`);
 
   try {
-    // Decode base64 to binary
     const binary = atob(cleanB64);
     const bytes  = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
 
-    // Find start of JPEG scan data (SOS marker: FF DA)
     let sosOffset = -1;
     for (let i = 0; i < bytes.length - 1; i++) {
       if (bytes[i] === 0xFF && bytes[i + 1] === 0xDA) {
-        // SOS segment: marker(2) + length(2) + components + Ss/Se/Ah/Al
         const segLen = (bytes[i + 2] << 8) | bytes[i + 3];
-        sosOffset = i + 2 + segLen; // actual compressed scan data starts here
+        sosOffset = i + 2 + segLen;
         break;
       }
     }
@@ -315,30 +267,23 @@ export const compressPhotoUri = async (uri, rawB64 = null) => {
       throw new Error('Could not find JPEG scan data (SOS marker)');
     }
 
-    // Copy headers verbatim (everything before scan data)
     const headerBytes = bytes.slice(0, sosOffset);
-
-    // Downsample scan data: keep every `ratio`-th byte, zero the rest
-    // This degrades quality but keeps JPEG structure intact
-    const scanBytes = bytes.slice(sosOffset, bytes.length - 2); // exclude EOI
-    const newScan   = new Uint8Array(Math.ceil(scanBytes.length / ratio));
+    const scanBytes   = bytes.slice(sosOffset, bytes.length - 2);
+    const newScan     = new Uint8Array(Math.ceil(scanBytes.length / ratio));
 
     for (let i = 0; i < newScan.length; i++) {
       newScan[i] = scanBytes[i * ratio];
-      // Avoid creating false FF markers that break JPEG parsing
       if (newScan[i] === 0xFF && i + 1 < newScan.length) {
-        newScan[i + 1] = 0x00; // stuff byte
+        newScan[i + 1] = 0x00;
       }
     }
 
-    // Reassemble: header + downsampled scan + EOI
     const result = new Uint8Array(headerBytes.length + newScan.length + 2);
     result.set(headerBytes, 0);
     result.set(newScan, headerBytes.length);
     result[result.length - 2] = 0xFF;
-    result[result.length - 1] = 0xD9; // EOI
+    result[result.length - 1] = 0xD9;
 
-    // Encode back to base64
     let outBinary = '';
     const chunk   = 8192;
     for (let i = 0; i < result.length; i += chunk) {
@@ -353,7 +298,6 @@ export const compressPhotoUri = async (uri, rawB64 = null) => {
       return outB64;
     }
 
-    // Still too big — do a second pass with a larger ratio
     console.log('  Tier 3: Still too big, applying second-pass ratio');
     const ratio2   = ratio * 3;
     const newScan2 = new Uint8Array(Math.ceil(scanBytes.length / ratio2));
@@ -379,17 +323,12 @@ export const compressPhotoUri = async (uri, rawB64 = null) => {
       return outB64_2;
     }
 
-    // Absolute fallback: truncate base64 to exactly 20 KB worth of data
-    // The image will be corrupt but at the right size. Only reached if
-    // all other methods fail completely.
     console.warn('Tier 3: All methods failed — hard truncating to 20 KB');
     const maxChars = Math.floor((MAX_PHOTO_KB * 1024 * 4) / 3);
     return outB64_2.substring(0, maxChars);
 
   } catch (e4) {
     console.error('Tier 3 pure-JS failed:', e4.message);
-
-    // Absolute last resort: just truncate the raw base64 to 20 KB
     console.warn('Last resort: hard truncating raw base64 to 20 KB');
     const maxChars = Math.floor((MAX_PHOTO_KB * 1024 * 4) / 3);
     return cleanB64.substring(0, maxChars);
@@ -399,10 +338,16 @@ export const compressPhotoUri = async (uri, rawB64 = null) => {
 // ─── Exported Service Functions ────────────────────────────────────────────────
 
 /**
- * Step 1 – Send OTP to mobile number
+ * Step 1 – Send OTP to mobile number (first-time registration)
  */
 export const sendOTP = (mobileNo) =>
   callSwagatamAPI(API_ENDPOINTS.SEND_OTP, { VisMobNo: mobileNo });
+
+/**
+ * Step 1b – Resend OTP to mobile number (already initiated registration)
+ */
+export const resendOTP = (mobileNo) =>
+  callSwagatamAPI(API_ENDPOINTS.RESEND_OTP, { VisMobNo: mobileNo });
 
 /**
  * Step 2 – Verify OTP and register visitor
@@ -460,20 +405,20 @@ export const completeProfile = ({
     VisMob:               visMob,
     VisName:              visName,
     VisFName:             visFName,
-    Visdob:               visdob,              // 'YYYY-MM-DD'
-    VisGender:            visGender,           // 'M' | 'F' | 'O'
+    Visdob:               visdob,
+    VisGender:            visGender,
     visemail:             visemail,
-    VisIdType:            visIdType,           // numeric string e.g. '5'
+    VisIdType:            visIdType,
     VisIddetails:         visIddetails,
     occupation:           occupation,
     VisPresentAddress:    visPresentAddress,
     PresentLandmark:      presentLandmark,
-    Visprsentstate:       visPresentState,     // numeric LG code string e.g. '27'
-    Vis_PinCode:          visPinCode,          // 6-digit string
+    Visprsentstate:       visPresentState,
+    Vis_PinCode:          visPinCode,
     VisPermanentAddress:  visPermanentAddress,
     VisPermanentLandmark: visPermanentLandmark,
     VisPermanentstate:    visPermanentState,
     VisPermanentPincode:  visPermanentPincode,
-    PhotoBase64:          photoBase64,         // jpg/png/bmp base64 < 20 KB
-    DocumentBase64:       documentBase64,      // PDF base64 < 400 KB
+    PhotoBase64:          photoBase64,
+    DocumentBase64:       documentBase64,
   });

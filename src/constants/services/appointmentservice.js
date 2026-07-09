@@ -4,7 +4,7 @@ import { API_ENDPOINTS } from '../../api/apiEndpoints';
 // ─── Credentials ───────────────────────────────────────────────────────────────
 const USER_ID      = 'swgtm';
 const RAW_PASSWORD = '$wgtm@76543';
-const PRIVATE_KEY  = 'Yst@wGH#!34trak'; // 15 chars — Java truncates/pads to 16
+const PRIVATE_KEY  = 'Yst@wGH#!34trak';
 
 // ─── Crypto Helpers ────────────────────────────────────────────────────────────
 
@@ -12,14 +12,12 @@ const getKeyWordArray = (key) => {
   const keyUtf8  = CryptoJS.enc.Utf8.parse(key);
   const keyBytes = new Uint8Array(16);
   const srcBytes = [];
-
   for (let i = 0; i < keyUtf8.sigBytes; i++) {
     srcBytes.push((keyUtf8.words[Math.floor(i / 4)] >>> (24 - (i % 4) * 8)) & 0xff);
   }
   for (let i = 0; i < Math.min(srcBytes.length, 16); i++) {
     keyBytes[i] = srcBytes[i];
   }
-
   const words = [];
   for (let i = 0; i < 16; i += 4) {
     words.push(
@@ -38,7 +36,7 @@ const aesEncrypt = (plainText, key) => {
     iv:      keyWA,
     mode:    CryptoJS.mode.CBC,
     padding: CryptoJS.pad.Pkcs7,
-  }).toString(); // Base64
+  }).toString();
 };
 
 const aesDecrypt = (cipherText, key) => {
@@ -73,14 +71,18 @@ const buildHashedPassword = (timestamp) => {
 };
 
 /**
- * Builds the 3-layer encrypted body:
- *   Layer 1: innerPayload  → AES(PRIVATE_KEY)  → encData
- *   Layer 2: { UserId, Password, TimeStamp, Data: encData } → AES(sharedKey) → Input
- *   Layer 3: { Input: ... }  ← final POST body
+ * CRITICAL: innerPayload must be a plain JS object.
+ * JSON.stringify safely escapes all special chars (apostrophes, quotes, tabs, etc.)
+ * before AES encryption. Never manually build a JSON string for the payload.
  */
 const buildFinalInput = (innerPayload) => {
   const timestamp = getTimestamp();
-  const encData   = aesEncrypt(JSON.stringify(innerPayload), PRIVATE_KEY);
+
+  // Safely serialise — apostrophes like "Hon'ble" become "Hon\'ble" in JSON
+  const innerJson = JSON.stringify(innerPayload);
+  console.log('Inner payload JSON (safe):', innerJson);
+
+  const encData   = aesEncrypt(innerJson, PRIVATE_KEY);
   const secondary = {
     UserId:    USER_ID,
     Password:  buildHashedPassword(timestamp),
@@ -94,7 +96,6 @@ const buildFinalInput = (innerPayload) => {
 
 const callSwagatamAPI = async (url, innerPayload) => {
   console.log('Calling:', url);
-  console.log('Inner payload:', JSON.stringify(innerPayload));
 
   const finalBody = buildFinalInput(innerPayload);
   console.log('Encrypted body:', JSON.stringify(finalBody));
@@ -113,19 +114,16 @@ const callSwagatamAPI = async (url, innerPayload) => {
     throw new Error('Empty response from server');
   }
 
-  // Check for unencrypted server-side error response
   try {
     const errCheck = JSON.parse(rawText);
     if (errCheck?.Error || errCheck?.error) {
       const msg = errCheck.Error || errCheck.error;
-      console.error('Server error:', msg, '| Log-Id:', errCheck['Log-Id']);
       throw new Error(`Server error: ${msg} (Log-Id: ${errCheck['Log-Id'] ?? 'N/A'})`);
     }
   } catch (e) {
     if (e.message.startsWith('Server error:')) throw e;
   }
 
-  // Attempt 1: strip surrounding quotes then decrypt with PRIVATE_KEY
   try {
     const stripped  = rawText.replace(/^"|"$/g, '').trim();
     const decrypted = aesDecrypt(stripped, PRIVATE_KEY);
@@ -135,10 +133,8 @@ const callSwagatamAPI = async (url, innerPayload) => {
     console.log('Decrypt attempt 1 failed:', e1.message);
   }
 
-  // Attempt 2: plain JSON (server returned unencrypted)
   try {
     const parsed = JSON.parse(rawText);
-    console.log('Plain JSON response:', parsed);
     return Array.isArray(parsed) ? parsed : [parsed];
   } catch (e2) {
     console.log('Plain JSON parse failed:', e2.message);
@@ -149,28 +145,12 @@ const callSwagatamAPI = async (url, innerPayload) => {
 
 // ─── Exported Service Functions ────────────────────────────────────────────────
 
-/**
- * Fetch organization / government types.
- *
- * URL:      POST /eVisitors/PopulateGovtype
- * Payload:  {}
- * Response: { Success: true, Data: [{ Id: "1", Name: "Central Governement" }, ...] }
- */
 export const fetchGovTypes = async () => {
   const result = await callSwagatamAPI(API_ENDPOINTS.POPULATE_GOV_TYPE, {});
   if (!result?.Success) throw new Error(result?.Message || 'Failed to fetch organization types');
   return result.Data || [];
 };
 
-/**
- * Fetch states / ministries for a given government type.
- *
- * URL:      POST /eVisitors/GetStateOrMinistry
- * Payload:  { GovType: "1" }
- * Response: { Success: true, Data: [{ Id: "1", Name: "National Informatics Centre" }, ...] }
- *
- * @param {string} govType - Id returned from fetchGovTypes (e.g. "1")
- */
 export const fetchStateOrMinistry = async (govType) => {
   const result = await callSwagatamAPI(
     API_ENDPOINTS.GET_STATE_OR_MINISTRY,
@@ -180,15 +160,6 @@ export const fetchStateOrMinistry = async (govType) => {
   return result.Data || [];
 };
 
-/**
- * Fetch buildings for a given ministry / department.
- *
- * URL:      POST /eVisitors/GetBhawanByMinistry
- * Payload:  { MinistryCode: "1" }
- * Response: { Success: true, Data: [{ Id: "20", Name: "NIC Headquarter" }, ...] }
- *
- * @param {string} ministryCode - Id returned from fetchStateOrMinistry (e.g. "1")
- */
 export const fetchBhawanByMinistry = async (ministryCode) => {
   const result = await callSwagatamAPI(
     API_ENDPOINTS.GET_BHAWAN_BY_MINISTRY,
@@ -198,23 +169,6 @@ export const fetchBhawanByMinistry = async (ministryCode) => {
   return result.Data || [];
 };
 
-/**
- * Fetch officers for a given ministry + building combination.
- *
- * URL:      POST /eVisitors/GetOfficerByBhawan
- * Payload:  { MinistryCode: "3", BhawanCode: "6" }
- * Response: {
- *   IsVehicleAllowed: true,
- *   IsAddlVisitorAllowed: true,
- *   Success: true,
- *   Message: "Officers fetched successfully.",
- *   Data: [{ Id: "R000600030035", Name: "test data( Constable - dete )" }, ...]
- * }
- *
- * @param {string} ministryCode - department/ministry Id (from fetchStateOrMinistry)
- * @param {string} bhawanCode   - building Id (from fetchBhawanByMinistry)
- * @returns {{ officers: Array, isVehicleAllowed: boolean, isAddlVisitorAllowed: boolean }}
- */
 export const fetchOfficersByBhawan = async (ministryCode, bhawanCode) => {
   const result = await callSwagatamAPI(
     API_ENDPOINTS.GET_OFFICER_BY_BHAWAN,
@@ -231,34 +185,22 @@ export const fetchOfficersByBhawan = async (ministryCode, bhawanCode) => {
 /**
  * Submit a visit appointment.
  *
- * URL:      POST /eVisitors/InsertAppVisitor
- * Payload:
- *   {
- *     Vis_Reg_No:             "13",              // REQUIRED — from login session
- *     MCode:                  "3",
- *     BCode:                  "6",
- *     Loc_Id:                 "R000600030021",
- *     Officer_Name:           "Testuser",        // just the name, NO designation
- *     Approving_Officer_Name: "Testuser( Scientist F - xyz Project Divison )", // full label
- *     Vis_Date:               "17/04/2026",      // DD/MM/YYYY
- *     Visit_Time:             "11:30",           // HH:MM 24-hr
- *     Visit_Purpose:          "Meeting",
- *     AdditionalVisitors:     "0",
- *     GovCode:                "2",
- *     StateCode:              "07",              // only required when GovCode = "2" (State Govt)
- *   }
- * Response: { Success: true, Message: "Visit request submitted successfully.", Data: ["I/0006/0003/8/2026/4002"] }
+ * StateCode rules (from API docs):
+ *   - GovCode = "2" (State Govt) → send the numeric state Id from GetStateOrMinistry
+ *     e.g. Maharashtra = "27", Delhi = "7"  (no zero-padding needed)
+ *   - All other GovCodes            → send "0"
  *
- * @param {object} payload - All required fields as described above
- * @returns {{ Success: boolean, Message: string, Data: string[] }}
+ * Pass innerPayload as a plain JS object — do NOT pre-stringify it.
+ * buildFinalInput will call JSON.stringify internally, which safely escapes
+ * apostrophes (Hon'ble → Hon\'ble) and all other special characters.
  */
 export const insertAppVisitor = async (payload) => {
   if (!payload?.Vis_Reg_No || String(payload.Vis_Reg_No).trim() === '') {
-    throw new Error(
-      'Vis_Reg_No is required. ' +
-      'Pass visRegNo via navigation params when opening CreateAppointmentScreen.',
-    );
+    throw new Error('Vis_Reg_No is required.');
   }
+
+  // Log safely — JSON.stringify here too so apostrophes don't break the log line
+  console.log('Submit payload (safe):', JSON.stringify(payload));
 
   const result = await callSwagatamAPI(API_ENDPOINTS.INSERT_APP_VISITOR, payload);
   if (!result?.Success) throw new Error(result?.Message || 'Failed to submit appointment');

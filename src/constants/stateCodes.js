@@ -1,4 +1,6 @@
-// LG Directory numeric state codes required by the API
+// LG Directory numeric state codes required by the Swagatam API.
+// Only used when GovCode = "2" (State Government) — otherwise StateCode
+// must be sent as "0". See insertAppVisitor() in appointmentservice.js.
 export const STATE_CODES = {
   'SELECT':                     '',
   'ANDAMAN AND NICOBAR':        '35',
@@ -40,7 +42,7 @@ export const STATE_CODES = {
   'WEST BENGAL':                '19',
 };
 
-// Numeric ID type codes required by the API
+// Numeric ID-proof type codes required by the API (visitor ID-proof field).
 export const ID_TYPE_CODES = {
   'SELECT':          '',
   'VOTER ID':        '1',

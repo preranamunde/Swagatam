@@ -7,8 +7,8 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
-// ✅ Correct
-import { sendOTP, verifyOTPAndRegister } from '../constants/services/visitorRegisterService';
+// ✅ Updated: added resendOTP
+import { sendOTP, verifyOTPAndRegister, resendOTP } from '../constants/services/visitorRegisterService';
 
 // ─────────────────────────────────────────────
 // VALIDATION
@@ -48,8 +48,8 @@ const VisitorRegisterScreen = ({ navigation }) => {
     try {
       const result  = await sendOTP(mobileNo);
       const message = result?.[0]?.Result ?? '';
-      console.log('🔍 ACTUAL API MESSAGE:', message);
-      console.log('🔍 FULL RESULT:', JSON.stringify(result));
+      console.log('ACTUAL API MESSAGE:', message);
+      console.log('FULL RESULT:', JSON.stringify(result));
 
       if (message.toLowerCase().includes('already registered')) {
         Alert.alert(
@@ -77,6 +77,36 @@ const VisitorRegisterScreen = ({ navigation }) => {
     } catch (e) {
       console.error('❌ Send OTP Error:', e.message);
       Alert.alert('Error', `Failed to send OTP:\n${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── STEP 1b — Resend OTP ───────────────────
+  // Uses the dedicated ReSendOTPForVisitor endpoint (not InsertAppvisitors)
+  const handleResendOTP = async () => {
+    setLoading(true);
+    try {
+      const result  = await resendOTP(mobileNo);
+      const message = result?.[0]?.Result ?? '';
+      console.log('Resend OTP result:', message);
+
+      if (
+        message.toLowerCase().includes('otp') ||
+        message.toLowerCase().includes('success') ||
+        message.toLowerCase().includes('sent') ||
+        message === ''
+      ) {
+        Alert.alert(
+          'OTP Resent',
+          `A new OTP has been sent to +91-${mobileNo}.\n\n📱 Check your SMS inbox and enter it below.`
+        );
+      } else {
+        Alert.alert('Resend Failed', message || 'Could not resend OTP. Please try again.');
+      }
+    } catch (e) {
+      console.error('❌ Resend OTP Error:', e.message);
+      Alert.alert('Error', `Failed to resend OTP:\n${e.message}`);
     } finally {
       setLoading(false);
     }
@@ -398,8 +428,9 @@ const VisitorRegisterScreen = ({ navigation }) => {
               </View>
 
               {/* ── Resend OTP ── */}
+              {/* ✅ Updated: now calls handleResendOTP → ReSendOTPForVisitor API */}
               <TouchableOpacity
-                onPress={handleSendOTP}
+                onPress={handleResendOTP}
                 style={styles.resendRow}
                 disabled={loading}
               >
