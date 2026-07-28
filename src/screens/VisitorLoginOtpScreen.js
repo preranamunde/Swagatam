@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,24 +11,35 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
-  Linking,
   ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { loginVisitor } from '../constants/services/visitorloginservice';
+import { sendLoginOtp, verifyLoginOtp } from '../constants/services/visitorloginservice';
 
 // ─── Validation ────────────────────────────────────────────────────────────────
 const isValidMobile = (n) => /^[6-9]\d{9}$/.test(n);
+const isValidOtp    = (o) => /^\d{4,6}$/.test(o);
+
+const RESEND_COOLDOWN_SECONDS = 180; // server enforces a 3 minute gap between requests
+
+// Pulls a "165 seconds" style number out of a server message, if present,
+// so the local countdown can stay in sync with the backend cooldown.
+const extractSecondsFromMessage = (msg) => {
+  if (!msg) return null;
+  const match = msg.match(/(\d+)\s*second/i);
+  return match ? parseInt(match[1], 10) : null;
+};
 
 // ─── Captcha (frontend-only, strengthened) ─────────────────────────────────────
-// Purely a client-side gate before calling the login API. The generated text,
-// the user's captcha input, and the verified/unverified state never leave the
-// device — loginVisitor() is still called with only (mobileNo, password),
-// exactly as before. The Login button stays disabled until the captcha is
-// verified locally, so an incorrect captcha can never even trigger the API call.
+// Same scheme as VisitorLoginScreen: purely a client-side gate before calling
+// sendLoginOtp(). The generated text, the user's captcha input, and the
+// verified/unverified state never leave the device — sendLoginOtp() is still
+// called with only (mobileNo), exactly as before. The Send/Resend OTP button
+// stays disabled until the captcha is verified locally, so it can never even
+// trigger the API call with an unverified captcha.
 const CAPTCHA_LENGTH = 6;
 // Deliberately excludes visually-ambiguous characters (0/O, 1/I/L).
 const CAPTCHA_CHARS  = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -64,20 +75,45 @@ const generateNoiseLines = (count = 4) =>
   }));
 
 // ─── Component ─────────────────────────────────────────────────────────────────
-const VisitorLoginScreen = ({ navigation }) => {
-  const [mobileNo,     setMobileNo]     = useState('');
-  const [password,     setPassword]     = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading,      setLoading]      = useState(false);
+const VisitorLoginOtpScreen = ({ navigation }) => {
+  const [step,          setStep]          = useState('mobile'); // 'mobile' | 'otp'
+  const [mobileNo,      setMobileNo]      = useState('');
+  const [otp,           setOtp]           = useState('');
+  const [sendingOtp,    setSendingOtp]    = useState(false);
+  const [verifyingOtp,  setVerifyingOtp]  = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
-  // Captcha state — generated once on mount, regenerated on refresh or on a
-  // failed attempt. `captcha.text` is the correct answer; `captchaInput` is
-  // what the user typed. Neither is ever included in the API payload.
+  // Captcha state — generated once on mount, regenerated on refresh or after
+  // every send/resend attempt. `captcha.text` is the correct answer;
+  // `captchaInput` is what the user typed. Neither is ever included in the
+  // API payload — sendLoginOtp() only ever receives the mobile number.
   const [captcha,         setCaptcha]         = useState(() => generateCaptcha());
-  const [noiseLines,       setNoiseLines]      = useState(() => generateNoiseLines());
+  const [noiseLines,      setNoiseLines]      = useState(() => generateNoiseLines());
   const [captchaInput,    setCaptchaInput]    = useState('');
   const [captchaVerified, setCaptchaVerified] = useState(false);
   const [captchaError,    setCaptchaError]    = useState('');
+
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
+
+  const startCooldown = (seconds) => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setResendCooldown(seconds);
+    timerRef.current = setInterval(() => {
+      setResendCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
 
   const handleRefreshCaptcha = () => {
     setCaptcha(generateCaptcha());
@@ -100,17 +136,15 @@ const VisitorLoginScreen = ({ navigation }) => {
     }
   };
 
-  // ── Login Handler ──────────────────────────────────────────────────────────
-  const handleSubmit = async () => {
+  // ── Send / Resend OTP Handler ──────────────────────────────────────────────
+  const handleSendOtp = async () => {
     if (!mobileNo.trim())
       return Alert.alert('Validation', 'Please enter your mobile number.');
     if (!isValidMobile(mobileNo))
       return Alert.alert('Validation', 'Mobile number must be 10 digits and start with 6–9.');
-    if (!password.trim())
-      return Alert.alert('Validation', 'Please enter your password.');
 
     // ── Captcha check — frontend-only gate. Nothing captcha-related is ever
-    // sent to loginVisitor(); it only guards whether we're allowed to call it.
+    // sent to sendLoginOtp(); it only guards whether we're allowed to call it.
     if (!captchaInput.trim()) {
       setCaptchaError('Please enter the captcha shown above.');
       return Alert.alert('Validation', 'Please enter the captcha shown above.');
@@ -122,16 +156,55 @@ const VisitorLoginScreen = ({ navigation }) => {
       return;
     }
 
-    setLoading(true);
+    setSendingOtp(true);
     try {
-      const response = await loginVisitor(mobileNo.trim(), password); // 👈 captcha never sent
-      console.log('Login response:', JSON.stringify(response));
+      const response = await sendLoginOtp(mobileNo.trim()); // 👈 captcha never sent
+      console.log('Send OTP response:', JSON.stringify(response));
+
+      const resultText = response?.Result ?? '';
+      const lower = resultText.toLowerCase();
+
+      if (lower.includes('successfully sent')) {
+        setStep('otp');
+        setOtp('');
+        startCooldown(RESEND_COOLDOWN_SECONDS);
+        handleRefreshCaptcha(); // fresh captcha required for the next resend
+        Alert.alert('OTP Sent', resultText);
+      } else if (lower.includes('wait')) {
+        // Server enforced its own cooldown — sync the local timer to it.
+        const secs = extractSecondsFromMessage(resultText);
+        if (secs) startCooldown(secs);
+        handleRefreshCaptcha();
+        Alert.alert('Please Wait', resultText);
+      } else {
+        // Not registered, daily limit reached, invalid number, etc.
+        handleRefreshCaptcha();
+        Alert.alert('Unable to Send OTP', resultText || 'Something went wrong. Please try again.');
+      }
+    } catch (e) {
+      console.error('Send OTP Error:', e.message);
+      handleRefreshCaptcha();
+      Alert.alert('Error', `Failed to send OTP:\n${e.message}`);
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  // ── Verify OTP Handler ─────────────────────────────────────────────────────
+  const handleVerifyOtp = async () => {
+    if (!otp.trim())
+      return Alert.alert('Validation', 'Please enter the OTP sent to your mobile.');
+    if (!isValidOtp(otp))
+      return Alert.alert('Validation', 'Please enter a valid OTP.');
+
+    setVerifyingOtp(true);
+    try {
+      const response = await verifyLoginOtp(mobileNo.trim(), otp.trim());
+      console.log('Verify OTP response:', JSON.stringify(response));
 
       if (response?.Success === true) {
         const userData = response?.Data?.[0] ?? {};
 
-        // loginSession — raw API fields used by screens that call APIs
-        //   e.g. PersonalDetailsScreen reads Vis_Reg_No as VisNo, Mobile as VisMob
         await AsyncStorage.setItem('loginSession', JSON.stringify({
           Vis_Reg_No: userData.Vis_Reg_No ?? '',
           Name:       userData.Name       ?? '',
@@ -139,7 +212,6 @@ const VisitorLoginScreen = ({ navigation }) => {
           Email:      userData.Email      ?? '',
         }));
 
-        // userData — human-readable fields for display screens
         await AsyncStorage.setItem('userData', JSON.stringify({
           mobile:   userData.Mobile     ?? mobileNo,
           name:     userData.Name       ?? 'Visitor User',
@@ -150,49 +222,37 @@ const VisitorLoginScreen = ({ navigation }) => {
         await AsyncStorage.setItem('userRole', 'visitor');
 
         console.log(
-          'loginSession saved — Vis_Reg_No:',
+          'loginSession saved (OTP login) — Vis_Reg_No:',
           userData.Vis_Reg_No,
           '| Mobile:',
           userData.Mobile,
         );
 
-        // NEW: send the user to set up their 4-digit MPIN right after login,
-        // instead of going straight to Home. From now on (next app launches),
-        // App.js will detect the saved Vis_Reg_No + saved MPIN and skip this
-        // login screen entirely, sending the user to MpinLogin instead.
         navigation.reset({
           index:  0,
-          routes: [{ name: 'MpinSetup' }],
+          routes: [{ name: 'Home' }],
         });
-
       } else {
-        const msg = response?.Message ?? 'Login failed. Please check your credentials.';
-        Alert.alert('Login Failed', msg);
-        // Regenerate captcha on a failed login too, so a stale captcha can't
-        // be reused across repeated attempts.
-        handleRefreshCaptcha();
+        const msg = response?.Message ?? 'Invalid OTP. Please try again.';
+        Alert.alert('Verification Failed', msg);
       }
     } catch (e) {
-      console.error('Login Error:', e.message);
-      Alert.alert('Error', `Login failed:\n${e.message}`);
-      handleRefreshCaptcha();
+      console.error('Verify OTP Error:', e.message);
+      Alert.alert('Error', `OTP verification failed:\n${e.message}`);
     } finally {
-      setLoading(false);
+      setVerifyingOtp(false);
     }
   };
 
-  const handleLoginWithOtp        = () => navigation.navigate('VisitorLoginOtp');
-  const handleRegistration        = () => navigation.navigate('VisitorRegister');
-  const handleForgotPassword      = () => navigation.navigate('ForgotPasswordVisitor');
-  const handleBackToRoleSelection = () => navigation.goBack();
-
-  const openExternalLink = async (url) => {
-    try {
-      await Linking.openURL(url);
-    } catch {
-      Alert.alert('Error', 'Failed to open link. Please check your internet connection.');
-    }
+  const handleChangeNumber = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setResendCooldown(0);
+    setOtp('');
+    setStep('mobile');
+    handleRefreshCaptcha();
   };
+
+  const handleBack = () => navigation.goBack();
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
@@ -205,7 +265,7 @@ const VisitorLoginScreen = ({ navigation }) => {
 
       {/* ── Header ── */}
       <View style={styles.headerSection}>
-        <TouchableOpacity style={styles.backButton} onPress={handleBackToRoleSelection}>
+        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
           <Ionicons name="arrow-back" size={28} color="#FFFFFF" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
@@ -231,8 +291,12 @@ const VisitorLoginScreen = ({ navigation }) => {
 
           {/* ── Title ── */}
           <View style={styles.titleSection}>
-            <Text style={styles.mainTitle}>Visitor Login</Text>
-            <Text style={styles.welcomeText}>Welcome back! Please login to continue</Text>
+            <Text style={styles.mainTitle}>Login with OTP</Text>
+            <Text style={styles.welcomeText}>
+              {step === 'mobile'
+                ? 'Enter your registered mobile number to receive an OTP'
+                : `Enter the OTP sent to +91 ${mobileNo}`}
+            </Text>
           </View>
 
           {/* ── Mobile Number ── */}
@@ -250,40 +314,20 @@ const VisitorLoginScreen = ({ navigation }) => {
                 onChangeText={setMobileNo}
                 keyboardType="phone-pad"
                 maxLength={10}
+                editable={step === 'mobile'}
               />
+              {step === 'otp' && (
+                <TouchableOpacity style={styles.changeNumberBtn} onPress={handleChangeNumber}>
+                  <Text style={styles.changeNumberText}>Change</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 
-          {/* ── Password ── */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.inputWrapper}>
-              <View style={styles.inputIconContainer}>
-                <Icon name="lock-outline" size={24} color="#3477eb" />
-              </View>
-              <TextInput
-                style={styles.textInput}
-                placeholder="Enter your password"
-                placeholderTextColor="#94A3B8"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-              />
-              <TouchableOpacity
-                style={styles.eyeIcon}
-                onPress={() => setShowPassword((prev) => !prev)}
-              >
-                <Ionicons
-                  name={showPassword ? 'eye-outline' : 'eye-off-outline'}
-                  size={22}
-                  color="#64748B"
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* ── Captcha — frontend-only check, never sent to the API. Login
-              only proceeds to loginVisitor() once this is verified locally. ── */}
+          {/* ── Captcha — frontend-only check, never sent to the API. OTP is
+              only sent/resent once this is verified locally. Shown in both
+              steps: it gates the initial send, and is re-verified (with a
+              fresh code) before every resend. ── */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>
               Captcha <Text style={styles.required}>*</Text>
@@ -354,108 +398,96 @@ const VisitorLoginScreen = ({ navigation }) => {
             </Text>
           </View>
 
-          {/* ── Forgot Password ── */}
-          <TouchableOpacity
-            style={styles.forgotPasswordContainer}
-            onPress={handleForgotPassword}
-          >
-            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-          </TouchableOpacity>
-
-          {/* ── Login Button ── */}
-          <TouchableOpacity
-            style={[
-              styles.primaryButton,
-              (loading || !captchaVerified) && styles.primaryButtonDisabled,
-            ]}
-            onPress={handleSubmit}
-            disabled={loading || !captchaVerified}
-            activeOpacity={0.8}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Text style={styles.primaryButtonText}>Login</Text>
-                <Ionicons name="arrow-forward" size={20} color="#FFFFFF" style={styles.buttonIcon} />
-              </>
-            )}
-          </TouchableOpacity>
-
-          {/* ── Divider ── */}
-          <View style={styles.dividerContainer}>
-            <View style={styles.divider} />
-            <Text style={styles.dividerText}>OR</Text>
-            <View style={styles.divider} />
-          </View>
-
-          {/* ── Login with OTP ── */}
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={handleLoginWithOtp}
-            activeOpacity={0.8}
-          >
-            <Icon name="message-text-outline" size={22} color="#3477eb" style={styles.secondaryButtonIcon} />
-            <Text style={styles.secondaryButtonText}>Login with OTP</Text>
-          </TouchableOpacity>
-
-          {/* ── Register Link ── */}
-          <View style={styles.registrationContainer}>
-            <Text style={styles.registrationText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={handleRegistration}>
-              <Text style={styles.registrationLink}>Register Now</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* ── About Swagatam ── */}
-        <TouchableOpacity
-          style={styles.swagatamContainer}
-          onPress={() => openExternalLink('https://swagatam.gov.in/public/About.aspx')}
-          activeOpacity={0.7}
-        >
-          <View style={styles.swagatamHeader}>
-            <Icon name="information-outline" size={20} color="#1E3A8A" />
-            <Text style={styles.swagatamTitle}>About Swagatam</Text>
-            <Icon name="open-in-new" size={16} color="#1E3A8A" style={styles.externalLinkIcon} />
-          </View>
-          <Text style={styles.swagatamText}>
-            Swagatam is an initiative by the Government of India to facilitate the common man.
-            Swagatam facility enables the citizens to have a smooth and simple process of making
-            an appointment. It will bridge the gap between the Government and the common man and
-            will enhance the opportunity of a common man to meet a government officer, hassle free.
-          </Text>
-        </TouchableOpacity>
-
-        {/* ── Footer Menu Cards ── */}
-        <View style={styles.footerMenuContainer}>
-          {[
-            { label: 'About Swagatam',   icon: 'information-outline',   url: 'https://swagatam.gov.in/public/About.aspx' },
-            { label: 'Terms & Conditions', icon: 'file-document-outline', url: 'https://swagatam.gov.in/public/TermsofUse.aspx' },
-            { label: 'Video Tutorial',   icon: 'play-circle-outline',   url: 'https://swagatam.gov.in/public/Videos.aspx' },
-          ].map(({ label, icon, url }) => (
-            <TouchableOpacity
-              key={label}
-              style={styles.footerMenuCard}
-              activeOpacity={0.7}
-              onPress={() => openExternalLink(url)}
-            >
-              <View style={styles.footerCardIconCircle}>
-                <Icon name={icon} size={24} color="#3477eb" />
+          {/* ── OTP Field (step 2) ── */}
+          {step === 'otp' && (
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>OTP</Text>
+              <View style={styles.inputWrapper}>
+                <View style={styles.inputIconContainer}>
+                  <Icon name="shield-key-outline" size={24} color="#3477eb" />
+                </View>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Enter OTP"
+                  placeholderTextColor="#94A3B8"
+                  value={otp}
+                  onChangeText={setOtp}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  autoFocus
+                />
               </View>
-              <Text style={styles.footerMenuText}>{label}</Text>
-              <Icon name="open-in-new" size={18} color="#64748B" />
-            </TouchableOpacity>
-          ))}
-        </View>
 
-        {/* ── NIC Logo ── */}
-        <View style={styles.nicLogoContainer}>
-          <Image
-            source={require('../assets/images/niclogo.jpeg')}
-            style={styles.nicLogo}
-            resizeMode="contain"
-          />
+              {/* ── Resend ── */}
+              <View style={styles.resendRow}>
+                {resendCooldown > 0 ? (
+                  <Text style={styles.resendMutedText}>
+                    Resend OTP in {resendCooldown}s
+                  </Text>
+                ) : (
+                  <TouchableOpacity
+                    onPress={handleSendOtp}
+                    disabled={sendingOtp || !captchaVerified}
+                  >
+                    <Text
+                      style={[
+                        styles.resendLinkText,
+                        (sendingOtp || !captchaVerified) && styles.resendLinkTextDisabled,
+                      ]}
+                    >
+                      Resend OTP
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* ── Primary Action Button ── */}
+          {step === 'mobile' ? (
+            <TouchableOpacity
+              style={[
+                styles.primaryButton,
+                (sendingOtp || !captchaVerified) && styles.primaryButtonDisabled,
+              ]}
+              onPress={handleSendOtp}
+              disabled={sendingOtp || !captchaVerified}
+              activeOpacity={0.8}
+            >
+              {sendingOtp ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Text style={styles.primaryButtonText}>Send OTP</Text>
+                  <Ionicons name="arrow-forward" size={20} color="#FFFFFF" style={styles.buttonIcon} />
+                </>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.primaryButton, verifyingOtp && styles.primaryButtonDisabled]}
+              onPress={handleVerifyOtp}
+              disabled={verifyingOtp}
+              activeOpacity={0.8}
+            >
+              {verifyingOtp ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Text style={styles.primaryButtonText}>Verify &amp; Login</Text>
+                  <Ionicons name="checkmark" size={20} color="#FFFFFF" style={styles.buttonIcon} />
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+
+          {/* ── Back to Password Login ── */}
+          <View style={styles.registrationContainer}>
+            <Text style={styles.registrationText}>Prefer a password? </Text>
+            <TouchableOpacity onPress={handleBack}>
+              <Text style={styles.registrationLink}>Login with Password</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* ── Footer ── */}
@@ -495,6 +527,8 @@ const styles = StyleSheet.create({
   inputIconContainer:      { width: 50, height: 54, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F1F5F9' },
   textInput:               { flex: 1, height: 54, paddingHorizontal: 16, fontSize: 15, color: '#0F172A', fontWeight: '400' },
   eyeIcon:                 { paddingHorizontal: 16, height: 54, justifyContent: 'center' },
+  changeNumberBtn:          { paddingHorizontal: 16, height: 54, justifyContent: 'center' },
+  changeNumberText:         { color: '#3477eb', fontSize: 13, fontWeight: '700' },
   // ── Captcha ──
   captchaRow:              { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
   captchaBox:              { flex: 1, height: 64, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: 12, borderWidth: 1.5, borderColor: '#E2E8F0', overflow: 'hidden', position: 'relative' },
@@ -506,36 +540,21 @@ const styles = StyleSheet.create({
   captchaInputError:       { borderColor: '#EF4444', borderWidth: 2 },
   captchaErrorText:        { fontSize: 12, color: '#EF4444', marginTop: 6 },
   captchaHelperText:       { fontSize: 12, color: '#94A3B8', marginTop: 6, lineHeight: 16 },
-  forgotPasswordContainer: { alignSelf: 'flex-end', marginBottom: 24 },
-  forgotPasswordText:      { fontSize: 14, color: '#3477eb', fontWeight: '600' },
+  resendRow:                { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 },
+  resendMutedText:          { fontSize: 13, color: '#94A3B8', fontWeight: '600' },
+  resendLinkText:           { fontSize: 13, color: '#3477eb', fontWeight: '700' },
+  resendLinkTextDisabled:   { color: '#94A3B8' },
   primaryButton:           { backgroundColor: '#3477eb', paddingVertical: 16, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', shadowColor: '#3477eb', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
   primaryButtonDisabled:   { opacity: 0.6 },
   primaryButtonText:       { color: '#FFFFFF', fontSize: 17, fontWeight: '700', letterSpacing: 0.5 },
   buttonIcon:              { marginLeft: 8 },
-  dividerContainer:        { flexDirection: 'row', alignItems: 'center', marginVertical: 28 },
-  divider:                 { flex: 1, height: 1, backgroundColor: '#E2E8F0' },
-  dividerText:             { marginHorizontal: 16, fontSize: 13, color: '#94A3B8', fontWeight: '600' },
-  secondaryButton:         { backgroundColor: '#FFFFFF', paddingVertical: 16, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', borderWidth: 2, borderColor: '#3477eb' },
-  secondaryButtonIcon:     { marginRight: 8 },
-  secondaryButtonText:     { color: '#3477eb', fontSize: 17, fontWeight: '700' },
   registrationContainer:   { flexDirection: 'row', justifyContent: 'center', marginTop: 28 },
   registrationText:        { fontSize: 15, color: '#64748B' },
   registrationLink:        { fontSize: 15, color: '#3477eb', fontWeight: '700' },
-  swagatamContainer:       { marginTop: 40, marginHorizontal: 24, marginBottom: 24, backgroundColor: '#E3F2FD', borderRadius: 12, padding: 16, borderLeftWidth: 4, borderLeftColor: '#3477eb', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  swagatamHeader:          { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  swagatamTitle:           { fontSize: 15, fontWeight: '700', color: '#1E3A8A', marginLeft: 8, flex: 1 },
-  externalLinkIcon:        { marginLeft: 4 },
-  swagatamText:            { fontSize: 13, color: '#1E3A8A', textAlign: 'justify', lineHeight: 20, fontWeight: '400' },
-  footerMenuContainer:     { paddingHorizontal: 24, marginBottom: 24, gap: 12 },
-  footerMenuCard:          { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 12, paddingVertical: 2, paddingHorizontal: 16, borderWidth: 1.5, borderColor: '#3477eb', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
-  footerCardIconCircle:    { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F0F7FF', justifyContent: 'center', alignItems: 'center', marginRight: 14 },
-  footerMenuText:          { fontSize: 15, color: '#334155', fontWeight: '600', flex: 1 },
-  nicLogoContainer:        { alignItems: 'center', paddingHorizontal: 24, marginBottom: 20 },
-  nicLogo:                 { width: '100%', height: 120 },
-  footer:                  { marginTop: 16, alignItems: 'center', paddingHorizontal: 24 },
+  footer:                  { marginTop: 40, alignItems: 'center', paddingHorizontal: 24 },
   footerText:              { fontSize: 13, color: '#94A3B8', marginBottom: 12, fontWeight: '500' },
   securityBadge:           { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ECFDF5', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#D1FAE5' },
   securityText:            { fontSize: 12, color: '#059669', fontWeight: '600', marginLeft: 6 },
 });
 
-export default VisitorLoginScreen;
+export default VisitorLoginOtpScreen;

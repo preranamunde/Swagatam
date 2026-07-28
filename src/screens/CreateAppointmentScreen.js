@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, StatusBar, Platform, Alert, Modal, ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DatePicker from 'react-native-date-picker';
-import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import DocumentPicker from 'react-native-document-picker';
+import RNFS from 'react-native-fs';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Dropdown } from 'react-native-element-dropdown';
 import {
@@ -57,7 +58,7 @@ const STATE_OPTIONS = [
   { label: 'RAJASTHAN',                 value: 'RAJASTHAN',                 stateId: '8'  },
   { label: 'SIKKIM',                    value: 'SIKKIM',                    stateId: '11' },
   { label: 'TAMIL NADU',                value: 'TAMIL NADU',                stateId: '33' },
-  { label: 'TELANGANA',                 value: 'TELANGANA',                 stateId: '36' },
+  { label: 'TELANGANA',                 value: 'TELANGANA',                stateId: '36' },
   { label: 'TRIPURA',                   value: 'TRIPURA',                   stateId: '16' },
   { label: 'UTTAR PRADESH',             value: 'UTTAR PRADESH',             stateId: '9'  },
   { label: 'UTTARAKHAND',               value: 'UTTARAKHAND',               stateId: '5'  },
@@ -86,6 +87,44 @@ const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, i) => ({ label: String(i*5
 // GovType Id that means "State Government" — must match API response
 const STATE_GOVT_GOV_CODE = '2';
 
+// Per API docs: DocumentBase64 must be a PDF under 400 KB
+const MAX_DOC_SIZE_BYTES = 400 * 1024;
+
+// "Any Additional Visitor?" section — options + cap.
+// NOTE: This data is captured locally for the officer/visitor's own reference
+// only. It is intentionally NOT sent to InsertAppVisitor — the payload keeps
+// sending the existing static AdditionalVisitors: '0' field, exactly as
+// before. See handleSubmit — nothing from additionalVisitors state is read
+// there.
+const GENDER_OPTIONS = [
+  { label: 'SELECT', value: 'SELECT' },
+  { label: 'Male',   value: 'Male'   },
+  { label: 'Female', value: 'Female' },
+  { label: 'Other',  value: 'Other'  },
+];
+const MAX_ADDITIONAL_VISITORS = 5;
+
+// Per updated requirement: Visit Date must stay within the CURRENT month and
+// year, and — on top of that — no more than MAX_VISIT_DATE_DAYS days ahead of
+// today. So the upper bound is whichever comes first: the end of the current
+// month, or today + MAX_VISIT_DATE_DAYS.
+const MAX_VISIT_DATE_DAYS = 10;
+
+const getVisitDateRange = () => {
+  const min = new Date();
+  min.setHours(0, 0, 0, 0);
+
+  const tenDaysOut = new Date();
+  tenDaysOut.setDate(tenDaysOut.getDate() + MAX_VISIT_DATE_DAYS);
+  tenDaysOut.setHours(23, 59, 59, 999);
+
+  const endOfMonth = new Date(min.getFullYear(), min.getMonth() + 1, 0);
+  endOfMonth.setHours(23, 59, 59, 999);
+
+  const max = tenDaysOut < endOfMonth ? tenDaysOut : endOfMonth;
+  return { min, max };
+};
+
 /**
  * Sanitize free-text / dropdown-derived fields before they go into the
  * InsertAppVisitor payload.
@@ -113,6 +152,17 @@ const sanitizeText = (str) =>
     .replace(/\(.*?\)/g, '')                      // drop any parenthetical title
     .replace(/\s+/g, ' ')                         // collapse multiple spaces
     .trim();
+
+/**
+ * Build the comma-separated Gadgets string expected by InsertAppVisitor,
+ * e.g. "Camera,Laptop". Returns '' if nothing is checked, in which case
+ * the field is omitted from the payload entirely (Gadgets is optional).
+ */
+const buildGadgetsString = (gadgets) =>
+  Object.entries(gadgets)
+    .filter(([, checked]) => checked)
+    .map(([key]) => GADGET_LABELS[key])
+    .join(',');
 
 // ─── Component ────────────────────────────────────────────────────────────────
 const CreateAppointmentScreen = ({ navigation, route }) => {
@@ -153,11 +203,24 @@ const CreateAppointmentScreen = ({ navigation, route }) => {
 
   const [showDatePicker,    setShowDatePicker]    = useState(false);
   const [tempDate,          setTempDate]          = useState(new Date());
+  // Today through the next MAX_VISIT_DATE_DAYS days — bounds for the Visit
+  // Date picker. Computed once per screen mount.
+  const visitDateRange = useMemo(() => getVisitDateRange(), []);
   const [selectedHour,      setSelectedHour]      = useState('00');
   const [selectedMinute,    setSelectedMinute]    = useState('00');
   const [isAnyTime,         setIsAnyTime]         = useState(false);
+
+  // Document upload state — holds the actual base64 payload for DocumentBase64
   const [documentUploaded,  setDocumentUploaded]  = useState(false);
-  const [showDocumentModal, setShowDocumentModal] = useState(false);
+  const [documentBase64,    setDocumentBase64]    = useState(null);
+  const [documentName,      setDocumentName]      = useState('');
+  const [documentPicking,   setDocumentPicking]   = useState(false);
+
+  // "Any Additional Visitor?" — Yes/No + up to MAX_ADDITIONAL_VISITORS rows.
+  // Purely local/UI state — never merged into the InsertAppVisitor payload.
+  const [hasAdditionalVisitors, setHasAdditionalVisitors] = useState(false);
+  const [additionalVisitors,    setAdditionalVisitors]    = useState([]);
+
   const [submitLoading,     setSubmitLoading]     = useState(false);
 
   const [orgTypeOptions,  setOrgTypeOptions]  = useState(EMPTY_SELECT);
@@ -193,6 +256,7 @@ const CreateAppointmentScreen = ({ navigation, route }) => {
     setDepartmentOptions(EMPTY_SELECT); setBuildingOptions(EMPTY_SELECT);
     setAuthorityOptions(EMPTY_SELECT); setBuildingError(null); setAuthorityError(null);
     setFormData(p => ({ ...p, department:'', building:'', authority:'', visitingOfficerName:'', approvingOfficerName:'' }));
+    setHasAdditionalVisitors(false); setAdditionalVisitors([]);
     try {
       const data = await fetchStateOrMinistry(govType);
       setDepartmentOptions([...EMPTY_SELECT, ...data.map(d => ({ label: d.Name, value: d.Id, id: d.Id }))]);
@@ -204,6 +268,7 @@ const CreateAppointmentScreen = ({ navigation, route }) => {
     setBuildingLoading(true); setBuildingError(null);
     setBuildingOptions(EMPTY_SELECT); setAuthorityOptions(EMPTY_SELECT); setAuthorityError(null);
     setFormData(p => ({ ...p, building:'', authority:'', visitingOfficerName:'', approvingOfficerName:'' }));
+    setHasAdditionalVisitors(false); setAdditionalVisitors([]);
     try {
       const data = await fetchBhawanByMinistry(ministryCode);
       setBuildingOptions([...EMPTY_SELECT, ...data.map(d => ({ label: d.Name, value: d.Id, id: d.Id }))]);
@@ -215,6 +280,7 @@ const CreateAppointmentScreen = ({ navigation, route }) => {
     setAuthorityLoading(true); setAuthorityError(null);
     setAuthorityOptions(EMPTY_SELECT);
     setFormData(p => ({ ...p, authority:'', visitingOfficerName:'', approvingOfficerName:'' }));
+    setHasAdditionalVisitors(false); setAdditionalVisitors([]);
     try {
       const { officers } = await fetchOfficersByBhawan(ministryCode, bhawanCode);
       setAuthorityOptions([...EMPTY_SELECT, ...officers.map(o => ({
@@ -235,12 +301,81 @@ const CreateAppointmentScreen = ({ navigation, route }) => {
     return `${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth()+1).padStart(2,'0')}/${date.getFullYear()}`;
   };
 
-  const handleDocumentOption = (option) => {
-    setShowDocumentModal(false);
-    const opts = { mediaType:'photo', quality:1, saveToPhotos:false };
-    const cb   = (r) => { if (!r.didCancel && !r.errorCode && r.assets?.[0]) setDocumentUploaded(true); };
-    if (option === 'camera')  launchCamera(opts, cb);
-    if (option === 'gallery') launchImageLibrary(opts, cb);
+  /**
+   * Opens the native document picker restricted to PDF, validates size
+   * client-side against the 400 KB limit the API enforces, then reads
+   * the file as base64 and stores it for submission as DocumentBase64.
+   *
+   * Note: the server still re-validates size/type/base64 integrity
+   * (see the "Document must be less than 400 KB", "Only PDF documents
+   * allowed.", and "Invalid Base64 string for document." error
+   * responses) so this client-side check is a UX nicety, not a
+   * guarantee — the existing catch block in handleSubmit already
+   * surfaces any server-side rejection via Alert.
+   */
+  const handlePickDocument = async () => {
+    setDocumentPicking(true);
+    try {
+      const result = await DocumentPicker.pickSingle({
+        type: [DocumentPicker.types.pdf],
+        copyTo: 'cachesDirectory',
+      });
+
+      const fileUri = result.fileCopyUri || result.uri;
+      const stat = await RNFS.stat(fileUri);
+
+      if (stat.size > MAX_DOC_SIZE_BYTES) {
+        Alert.alert(
+          'File too large',
+          `Document must be less than 400 KB. Current size: ${Math.round(stat.size / 1024)} KB`
+        );
+        return;
+      }
+
+      const base64 = await RNFS.readFile(fileUri, 'base64');
+      setDocumentBase64(base64);
+      setDocumentName(result.name || 'document.pdf');
+      setDocumentUploaded(true);
+    } catch (err) {
+      if (DocumentPicker.isCancel(err)) return;
+      console.error('Document pick error:', err.message);
+      Alert.alert('Error', 'Failed to select document. Please try again.');
+    } finally {
+      setDocumentPicking(false);
+    }
+  };
+
+  const handleRemoveDocument = () => {
+    setDocumentBase64(null);
+    setDocumentName('');
+    setDocumentUploaded(false);
+  };
+
+  // ── Additional Visitor helpers ───────────────────────────────────────────────
+  // Local-only rows (name/age/gender/address). Capped at MAX_ADDITIONAL_VISITORS
+  // and deliberately never read inside handleSubmit / the payload builder below.
+  const handleToggleAdditionalVisitors = (value) => {
+    setHasAdditionalVisitors(value);
+    if (!value) setAdditionalVisitors([]);
+    else if (value && additionalVisitors.length === 0) {
+      setAdditionalVisitors([{ id: `${Date.now()}`, name: '', age: '', gender: '', address: '' }]);
+    }
+  };
+
+  const addVisitorRow = () => {
+    if (additionalVisitors.length >= MAX_ADDITIONAL_VISITORS) return;
+    setAdditionalVisitors(prev => [
+      ...prev,
+      { id: `${Date.now()}-${prev.length}`, name: '', age: '', gender: '', address: '' },
+    ]);
+  };
+
+  const removeVisitorRow = (id) => {
+    setAdditionalVisitors(prev => prev.filter(v => v.id !== id));
+  };
+
+  const updateVisitorField = (id, field, value) => {
+    setAdditionalVisitors(prev => prev.map(v => (v.id === id ? { ...v, [field]: value } : v)));
   };
 
   // ── Submit ────────────────────────────────────────────────────────────────
@@ -257,12 +392,16 @@ const CreateAppointmentScreen = ({ navigation, route }) => {
     }
 
     if (!formData.organizationType || formData.organizationType === 'SELECT') { Alert.alert('Error','Please select Organization Type'); return; }
-    if (!formData.state             || formData.state             === 'SELECT') { Alert.alert('Error','Please select State');             return; }
+    if (isStateGovtSelected && (!formData.state || formData.state === 'SELECT')) { Alert.alert('Error','Please select State'); return; }
     if (!formData.department        || formData.department        === 'SELECT') { Alert.alert('Error','Please select Department');        return; }
     if (!formData.building          || formData.building          === 'SELECT') { Alert.alert('Error','Please select Building');          return; }
     if (!formData.authority         || formData.authority         === 'SELECT') { Alert.alert('Error','Please select Authority/Officer'); return; }
     if (!formData.visitingOfficerName.trim())                                   { Alert.alert('Error','Please enter Visiting Officer Name'); return; }
     if (!formData.visitDate)                                                    { Alert.alert('Error','Please select Visit Date');        return; }
+    if (formData.visitDate < visitDateRange.min || formData.visitDate > visitDateRange.max) {
+      Alert.alert('Error', `Visit Date must be between ${formatDate(visitDateRange.min)} and ${formatDate(visitDateRange.max)}.`);
+      return;
+    }
     if (!formData.visitType         || formData.visitType         === 'SELECT') { Alert.alert('Error','Please select Visit Type');        return; }
     if (!formData.visitPurpose.trim())                                          { Alert.alert('Error','Please enter Visit Purpose');      return; }
 
@@ -273,6 +412,10 @@ const CreateAppointmentScreen = ({ navigation, route }) => {
 
     // Visit_Time: "00:00" when Any Time per API docs
     const visitTime = isAnyTime ? '00:00' : `${selectedHour}:${selectedMinute}`;
+
+    // Gadgets: comma-separated list of checked items, e.g. "Camera,Laptop".
+    // Optional — omitted entirely from the payload if nothing is checked.
+    const gadgetsStr = buildGadgetsString(formData.electronicGadgets);
 
     /**
      * Build payload as a plain JS object.
@@ -288,6 +431,14 @@ const CreateAppointmentScreen = ({ navigation, route }) => {
      * curly quotes, and collapse whitespace — this is what was causing the
      * "Internal server error" on InsertAppVisitor (see sanitizeText comment
      * above for the full explanation).
+     *
+     * Gadgets and DocumentBase64 are new, optional fields per the updated
+     * InsertAppVisitor docs — only included when there's actually data to
+     * send, since the API treats both as optional.
+     *
+     * AdditionalVisitors stays a static '0' on purpose — the "Any Additional
+     * Visitor?" name/age/gender/address rows captured above are dummy/local
+     * UI-only fields and are intentionally NOT read here or sent to the API.
      */
     const payload = {
       Vis_Reg_No:             String(visRegNo),
@@ -302,6 +453,8 @@ const CreateAppointmentScreen = ({ navigation, route }) => {
       AdditionalVisitors:     '0',
       GovCode:                String(formData.organizationType),
       StateCode:              stateCode,
+      ...(gadgetsStr ? { Gadgets: gadgetsStr } : {}),
+      ...(documentBase64 ? { DocumentBase64: documentBase64 } : {}),
     };
 
     setSubmitLoading(true);
@@ -327,6 +480,11 @@ const CreateAppointmentScreen = ({ navigation, route }) => {
     ]);
 
   // ── Derived flags ─────────────────────────────────────────────────────────
+  // State field is only meaningful — and only enabled — when the selected
+  // Organization Type is "State Government" (GovCode === STATE_GOVT_GOV_CODE).
+  // For every other organization type it's locked and cleared.
+  const isStateGovtSelected = String(formData.organizationType) === STATE_GOVT_GOV_CODE;
+  const stateDisabled     = !isStateGovtSelected;
   const deptDisabled      = deptLoading      || !formData.organizationType || formData.organizationType === 'SELECT';
   const buildingDisabled  = buildingLoading  || !formData.department        || formData.department        === 'SELECT';
   const authorityDisabled = authorityLoading || !formData.building          || formData.building          === 'SELECT';
@@ -342,30 +500,6 @@ const CreateAppointmentScreen = ({ navigation, route }) => {
         <Text style={styles.retryButtonText}>Retry</Text>
       </TouchableOpacity>
     </View>
-  );
-
-  const UploadModal = ({ visible, onClose, onCamera, onGallery, title }) => (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose}>
-        <View style={styles.modalContainer}>
-          <TouchableOpacity activeOpacity={1}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>{title}</Text>
-              <Text style={styles.modalSubtitle}>Choose an option</Text>
-              <TouchableOpacity style={styles.modalOption} onPress={onCamera}>
-                <Icon name="camera" size={24} color="#3477eb" /><Text style={styles.modalOptionText}>Open Camera</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalOption} onPress={onGallery}>
-                <Icon name="image" size={24} color="#3477eb" /><Text style={styles.modalOptionText}>Choose from Gallery</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalCancelButton} onPress={onClose}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
-    </Modal>
   );
 
   if (sessionLoading) {
@@ -416,6 +550,8 @@ const CreateAppointmentScreen = ({ navigation, route }) => {
               value={formData.organizationType} disable={orgTypeLoading}
               onChange={(item) => {
                 setField('organizationType', item.value);
+                // Reset State whenever Organization Type changes — it will only
+                // be re-enabled below if the newly selected type is State Govt.
                 setField('state', ''); setField('stateId', '');
                 if (item.value && item.value !== 'SELECT') loadDepartments(item.value);
                 else {
@@ -429,15 +565,19 @@ const CreateAppointmentScreen = ({ navigation, route }) => {
             />
           </View>
 
-          {/* State */}
+          {/* State — only enabled for Organization Type = State Government */}
           <View style={styles.formGroup}>
-            <Text style={styles.label}>State <RedStar /></Text>
+            <Text style={styles.label}>
+              State {isStateGovtSelected && <RedStar />}
+            </Text>
             <Dropdown
-              style={styles.dropdown} placeholderStyle={styles.dropdownPlaceholder}
+              style={[styles.dropdown, stateDisabled && styles.dropdownDisabled]}
+              placeholderStyle={styles.dropdownPlaceholder}
               selectedTextStyle={styles.dropdownSelectedText} inputSearchStyle={styles.dropdownSearchInput}
               iconStyle={styles.dropdownIcon} containerStyle={styles.dropdownContainer}
               data={STATE_OPTIONS} search maxHeight={300} labelField="label" valueField="value"
-              placeholder="Select State" searchPlaceholder="Search…" value={formData.state}
+              placeholder={stateDisabled ? 'Applicable only for State Government' : 'Select State'}
+              searchPlaceholder="Search…" value={formData.state} disable={stateDisabled}
               onChange={(item) => {
                 // Store both the display name and the numeric stateId
                 setFormData(p => ({ ...p, state: item.value, stateId: item.stateId || '' }));
@@ -541,15 +681,18 @@ const CreateAppointmentScreen = ({ navigation, route }) => {
             />
           </View>
 
-          {/* Visit Date */}
+          {/* Visit Date — restricted to today through the next 10 days */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Visit Date <RedStar /></Text>
-            <TouchableOpacity style={styles.dateTimeInput} onPress={() => { setTempDate(formData.visitDate || new Date()); setShowDatePicker(true); }}>
+            <TouchableOpacity style={styles.dateTimeInput} onPress={() => { setTempDate(formData.visitDate || visitDateRange.min); setShowDatePicker(true); }}>
               <Icon name="calendar" size={20} color="#64748B" style={styles.inputIcon} />
               <Text style={formData.visitDate ? styles.dateTimeText : styles.dateTimePlaceholder}>
                 {formData.visitDate ? formatDate(formData.visitDate) : 'Select date'}
               </Text>
             </TouchableOpacity>
+            <Text style={styles.dateHintText}>
+              Selectable from {formatDate(visitDateRange.min)} to {formatDate(visitDateRange.max)} (current month, max {MAX_VISIT_DATE_DAYS} days ahead)
+            </Text>
           </View>
 
           <Modal transparent visible={showDatePicker} animationType="fade" onRequestClose={() => setShowDatePicker(false)}>
@@ -560,12 +703,34 @@ const CreateAppointmentScreen = ({ navigation, route }) => {
                     <Text style={styles.datePickerTitle}>Select Date</Text>
                     <TouchableOpacity onPress={() => setShowDatePicker(false)}><Icon name="close" size={24} color="#64748B" /></TouchableOpacity>
                   </View>
-                  <DatePicker date={tempDate} onDateChange={setTempDate} mode="date" minimumDate={new Date()} theme="light" textColor="#0F172A" fadeToColor="#FFFFFF" />
+                  <DatePicker
+                    date={tempDate}
+                    onDateChange={setTempDate}
+                    mode="date"
+                    minimumDate={visitDateRange.min}
+                    maximumDate={visitDateRange.max}
+                    theme="light"
+                    textColor="#0F172A"
+                    fadeToColor="#FFFFFF"
+                  />
                   <View style={styles.datePickerButtonContainer}>
                     <TouchableOpacity style={styles.datePickerCancelButton} onPress={() => setShowDatePicker(false)}>
                       <Text style={styles.datePickerCancelText}>Cancel</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.datePickerConfirmButton} onPress={() => { setField('visitDate', tempDate); setShowDatePicker(false); }}>
+                    <TouchableOpacity
+                      style={styles.datePickerConfirmButton}
+                      onPress={() => {
+                        // Defensive clamp in case the native picker ever
+                        // allows a value outside the window.
+                        const clamped = tempDate < visitDateRange.min
+                          ? visitDateRange.min
+                          : tempDate > visitDateRange.max
+                            ? visitDateRange.max
+                            : tempDate;
+                        setField('visitDate', clamped);
+                        setShowDatePicker(false);
+                      }}
+                    >
                       <Text style={styles.datePickerConfirmText}>Confirm</Text>
                     </TouchableOpacity>
                   </View>
@@ -618,17 +783,19 @@ const CreateAppointmentScreen = ({ navigation, route }) => {
             />
           </View>
 
-          {/* Visit Purpose */}
-          <View style={styles.formGroup}>
+          {/* Visit Purpose — height reduced and bottom margin tightened so
+              Electronic Gadgets isn't pushed down by a big empty gap. */}
+          <View style={[styles.formGroup, styles.visitPurposeGroup]}>
             <Text style={styles.label}>Visit Purpose (Max 150 char) <RedStar /></Text>
             <TextInput style={[styles.textInput, styles.textArea]} placeholder="Enter visit purpose"
               placeholderTextColor="#94A3B8" value={formData.visitPurpose}
               onChangeText={(v) => { if (v.length <= 150) setField('visitPurpose', v); }}
-              multiline numberOfLines={4} maxLength={150} />
+              multiline numberOfLines={3} maxLength={150} />
             <Text style={styles.charCount}>{formData.visitPurpose.length}/150</Text>
           </View>
 
-          {/* Electronic Gadgets */}
+          {/* Electronic Gadgets — checked items get combined into the
+              comma-separated Gadgets string sent to InsertAppVisitor */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Electronic Gadgets</Text>
             <View style={styles.gadgetsContainer}>
@@ -649,17 +816,142 @@ const CreateAppointmentScreen = ({ navigation, route }) => {
             </View>
           </View>
 
-          {/* Upload Document */}
+          {/* Upload Document — PDF only, < 400 KB, base64-encoded into
+              DocumentBase64 for InsertAppVisitor */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Upload Document (if any)</Text>
-            <TouchableOpacity style={[styles.uploadButton, documentUploaded && styles.uploadButtonSuccess]} onPress={() => setShowDocumentModal(true)}>
-              <Icon name={documentUploaded ? 'check-circle' : 'file-upload-outline'} size={18} color={documentUploaded ? '#10B981' : '#64748B'} />
-              <Text style={[styles.uploadButtonText, documentUploaded && styles.uploadButtonTextSuccess]}>
-                {documentUploaded ? 'Document Uploaded' : 'Choose File'}
+            <TouchableOpacity
+              style={[styles.uploadButton, documentUploaded && styles.uploadButtonSuccess]}
+              onPress={documentUploaded ? handleRemoveDocument : handlePickDocument}
+              disabled={documentPicking}
+            >
+              {documentPicking ? (
+                <ActivityIndicator size="small" color="#64748B" />
+              ) : (
+                <Icon
+                  name={documentUploaded ? 'check-circle' : 'file-upload-outline'}
+                  size={18}
+                  color={documentUploaded ? '#10B981' : '#64748B'}
+                />
+              )}
+              <Text style={[styles.uploadButtonText, documentUploaded && styles.uploadButtonTextSuccess]} numberOfLines={1}>
+                {documentUploaded ? `${documentName} (tap to remove)` : 'Choose PDF File'}
               </Text>
             </TouchableOpacity>
             <Text style={styles.uploadInstruction}>1. Please attach only pdf file that is less than 400 KB.</Text>
           </View>
+
+          {/* Any Additional Visitor? — last field before Submit/Cancel.
+              Only appears once an Authority/Officer has been selected.
+              Local-only: name/age/gender/address rows are dummy placeholders
+              for the officer's reference and are never sent to the API (the
+              payload always sends the existing static AdditionalVisitors:'0'). */}
+          {formData.authority && formData.authority !== 'SELECT' && (
+            <View style={[styles.formGroup, styles.lastFormGroup]}>
+              <Text style={styles.label}>Any Additional Visitor?</Text>
+              <View style={styles.radioRow}>
+                <TouchableOpacity style={styles.radioOption} onPress={() => handleToggleAdditionalVisitors(true)} activeOpacity={0.7}>
+                  <View style={[styles.radioCircle, hasAdditionalVisitors && styles.radioCircleSelected]}>
+                    {hasAdditionalVisitors && <View style={styles.radioCircleDot} />}
+                  </View>
+                  <Text style={styles.radioLabel}>Yes</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.radioOption} onPress={() => handleToggleAdditionalVisitors(false)} activeOpacity={0.7}>
+                  <View style={[styles.radioCircle, !hasAdditionalVisitors && styles.radioCircleSelected]}>
+                    {!hasAdditionalVisitors && <View style={styles.radioCircleDot} />}
+                  </View>
+                  <Text style={styles.radioLabel}>No</Text>
+                </TouchableOpacity>
+              </View>
+
+              {hasAdditionalVisitors && (
+                <View style={styles.visitorsContainer}>
+                  {additionalVisitors.map((visitor, index) => (
+                    <View key={visitor.id} style={styles.visitorCard}>
+                      <View style={styles.visitorCardHeader}>
+                        <Text style={styles.visitorCardTitle}>Visitor {index + 1}</Text>
+                        <TouchableOpacity onPress={() => removeVisitorRow(visitor.id)} style={styles.visitorRemoveButton}>
+                          <Icon name="close-circle" size={20} color="#EF4444" />
+                        </TouchableOpacity>
+                      </View>
+
+                      <View style={styles.visitorFieldRow}>
+                        <View style={[styles.visitorFieldWrapper, { flex: 1.4 }]}>
+                          <Text style={styles.visitorFieldLabel}>Name</Text>
+                          <TextInput
+                            style={styles.visitorTextInput}
+                            placeholder="Full name"
+                            placeholderTextColor="#94A3B8"
+                            value={visitor.name}
+                            onChangeText={(v) => updateVisitorField(visitor.id, 'name', v)}
+                          />
+                        </View>
+                        <View style={styles.visitorFieldWrapper}>
+                          <Text style={styles.visitorFieldLabel}>Age</Text>
+                          <TextInput
+                            style={styles.visitorTextInput}
+                            placeholder="Age"
+                            placeholderTextColor="#94A3B8"
+                            value={visitor.age}
+                            onChangeText={(v) => updateVisitorField(visitor.id, 'age', v.replace(/[^0-9]/g, ''))}
+                            keyboardType="number-pad"
+                            maxLength={3}
+                          />
+                        </View>
+                      </View>
+
+                      <View style={styles.visitorFieldRow}>
+                        <View style={styles.visitorFieldWrapper}>
+                          <Text style={styles.visitorFieldLabel}>Gender</Text>
+                          <Dropdown
+                            style={styles.visitorDropdown}
+                            placeholderStyle={styles.dropdownPlaceholder}
+                            selectedTextStyle={styles.dropdownSelectedText}
+                            iconStyle={styles.dropdownIcon}
+                            containerStyle={styles.dropdownContainer}
+                            data={GENDER_OPTIONS}
+                            maxHeight={180}
+                            labelField="label"
+                            valueField="value"
+                            placeholder="Select"
+                            value={visitor.gender}
+                            onChange={(item) => updateVisitorField(visitor.id, 'gender', item.value)}
+                          />
+                        </View>
+                        <View style={[styles.visitorFieldWrapper, { flex: 1.4 }]}>
+                          <Text style={styles.visitorFieldLabel}>Address</Text>
+                          <TextInput
+                            style={styles.visitorTextInput}
+                            placeholder="Address"
+                            placeholderTextColor="#94A3B8"
+                            value={visitor.address}
+                            onChangeText={(v) => updateVisitorField(visitor.id, 'address', v)}
+                          />
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+
+                  <TouchableOpacity
+                    style={[styles.addVisitorButton, additionalVisitors.length >= MAX_ADDITIONAL_VISITORS && styles.addVisitorButtonDisabled]}
+                    onPress={addVisitorRow}
+                    disabled={additionalVisitors.length >= MAX_ADDITIONAL_VISITORS}
+                    activeOpacity={0.7}
+                  >
+                    <Icon
+                      name="plus-circle-outline"
+                      size={18}
+                      color={additionalVisitors.length >= MAX_ADDITIONAL_VISITORS ? '#94A3B8' : '#3477eb'}
+                    />
+                    <Text style={[styles.addVisitorButtonText, additionalVisitors.length >= MAX_ADDITIONAL_VISITORS && styles.addVisitorButtonTextDisabled]}>
+                      {additionalVisitors.length >= MAX_ADDITIONAL_VISITORS ? 'Maximum 5 visitors added' : 'Add Visitor'}
+                    </Text>
+                  </TouchableOpacity>
+                  <Text style={styles.visitorCountText}>{additionalVisitors.length}/{MAX_ADDITIONAL_VISITORS} additional visitors added</Text>
+                </View>
+              )}
+            </View>
+          )}
         </View>
 
         {/* Buttons */}
@@ -675,10 +967,6 @@ const CreateAppointmentScreen = ({ navigation, route }) => {
 
         <View style={styles.bottomPadding} />
       </ScrollView>
-
-      <UploadModal visible={showDocumentModal} onClose={() => setShowDocumentModal(false)}
-        onCamera={() => handleDocumentOption('camera')} onGallery={() => handleDocumentOption('gallery')}
-        title="Upload Document" />
     </View>
   );
 };
@@ -697,15 +985,18 @@ const styles = StyleSheet.create({
   scrollContent:             { paddingBottom:20 },
   section:                   { backgroundColor:'#FFFFFF', marginHorizontal:16, marginTop:16, padding:20, borderRadius:12, elevation:2 },
   formGroup:                 { marginBottom:24 },
+  visitPurposeGroup:          { marginBottom:8 },
+  lastFormGroup:              { marginBottom:0 },
   label:                     { fontSize:14, fontWeight:'600', color:'#334155', marginBottom:8 },
   redStar:                   { color:'#EF4444', fontSize:14 },
   textInput:                 { backgroundColor:'#FFFFFF', borderRadius:10, borderWidth:1.5, borderColor:'#E2E8F0', paddingHorizontal:16, paddingVertical:12, fontSize:15, color:'#0F172A' },
-  textArea:                  { height:100, textAlignVertical:'top', paddingTop:12 },
-  charCount:                 { fontSize:12, color:'#64748B', textAlign:'right', marginTop:4 },
+  textArea:                  { height:70, textAlignVertical:'top', paddingTop:10, paddingBottom:10 },
+  charCount:                 { fontSize:12, color:'#64748B', textAlign:'right', marginTop:2 },
   dateTimeInput:             { backgroundColor:'#FFFFFF', borderRadius:10, borderWidth:1.5, borderColor:'#E2E8F0', paddingHorizontal:16, paddingVertical:12, flexDirection:'row', alignItems:'center' },
   inputIcon:                 { marginRight:10 },
   dateTimeText:              { fontSize:15, color:'#0F172A', flex:1 },
   dateTimePlaceholder:       { fontSize:15, color:'#94A3B8', flex:1 },
+  dateHintText:               { fontSize:12, color:'#64748B', marginTop:6 },
   anyTimeRow:                { flexDirection:'row', alignItems:'center', marginBottom:12 },
   anyTimeLabel:              { fontSize:14, fontWeight:'600', color:'#EF4444', marginLeft:8 },
   timeRow:                   { flexDirection:'row', alignItems:'flex-end', gap:8 },
@@ -733,9 +1024,31 @@ const styles = StyleSheet.create({
   gadgetLabel:               { fontSize:13, color:'#334155', fontWeight:'500', flex:1 },
   uploadButton:              { backgroundColor:'#F8FAFC', borderRadius:10, borderWidth:1.5, borderColor:'#CBD5E1', paddingVertical:12, paddingHorizontal:16, flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8 },
   uploadButtonSuccess:       { backgroundColor:'#ECFDF5', borderColor:'#10B981' },
-  uploadButtonText:          { fontSize:14, color:'#64748B', fontWeight:'600' },
+  uploadButtonText:          { fontSize:14, color:'#64748B', fontWeight:'600', flexShrink:1 },
   uploadButtonTextSuccess:   { color:'#10B981' },
   uploadInstruction:         { fontSize:12, color:'#10B981', marginTop:8, lineHeight:18 },
+  // "Any Additional Visitor?" — Yes/No radio + dynamic visitor cards
+  radioRow:                   { flexDirection:'row', gap:24 },
+  radioOption:                { flexDirection:'row', alignItems:'center' },
+  radioCircle:                { width:20, height:20, borderRadius:10, borderWidth:2, borderColor:'#CBD5E1', marginRight:8, justifyContent:'center', alignItems:'center', backgroundColor:'#FFFFFF' },
+  radioCircleSelected:        { borderColor:'#3477eb' },
+  radioCircleDot:             { width:10, height:10, borderRadius:5, backgroundColor:'#3477eb' },
+  radioLabel:                 { fontSize:14, fontWeight:'600', color:'#334155' },
+  visitorsContainer:          { marginTop:16, gap:12 },
+  visitorCard:                { backgroundColor:'#F8FAFC', borderRadius:10, borderWidth:1, borderColor:'#E2E8F0', padding:12, gap:10 },
+  visitorCardHeader:          { flexDirection:'row', alignItems:'center', justifyContent:'space-between' },
+  visitorCardTitle:           { fontSize:13, fontWeight:'700', color:'#3477eb' },
+  visitorRemoveButton:        { padding:2 },
+  visitorFieldRow:            { flexDirection:'row', gap:10 },
+  visitorFieldWrapper:        { flex:1 },
+  visitorFieldLabel:          { fontSize:11, fontWeight:'600', color:'#64748B', marginBottom:4 },
+  visitorTextInput:           { backgroundColor:'#FFFFFF', borderRadius:8, borderWidth:1.5, borderColor:'#E2E8F0', paddingHorizontal:10, paddingVertical:8, fontSize:13, color:'#0F172A' },
+  visitorDropdown:            { height:38, backgroundColor:'#FFFFFF', borderRadius:8, borderWidth:1.5, borderColor:'#E2E8F0', paddingHorizontal:10 },
+  addVisitorButton:           { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, borderWidth:1.5, borderColor:'#3477eb', borderStyle:'dashed', borderRadius:10, paddingVertical:10 },
+  addVisitorButtonDisabled:   { borderColor:'#CBD5E1' },
+  addVisitorButtonText:       { fontSize:13, fontWeight:'600', color:'#3477eb' },
+  addVisitorButtonTextDisabled: { color:'#94A3B8' },
+  visitorCountText:            { fontSize:11, color:'#64748B', textAlign:'right', marginTop:6 },
   buttonContainer:           { marginHorizontal:16, marginTop:24, gap:12 },
   submitButton:              { backgroundColor:'#3477eb', paddingVertical:16, borderRadius:12, alignItems:'center', elevation:4 },
   submitButtonDisabled:      { opacity:0.6 },
@@ -743,15 +1056,6 @@ const styles = StyleSheet.create({
   cancelButton:              { backgroundColor:'#FFFFFF', paddingVertical:16, borderRadius:12, alignItems:'center', borderWidth:2, borderColor:'#E2E8F0' },
   cancelButtonText:          { color:'#64748B', fontSize:17, fontWeight:'700' },
   bottomPadding:             { height:20 },
-  modalOverlay:              { flex:1, backgroundColor:'rgba(0,0,0,0.5)', justifyContent:'center', alignItems:'center' },
-  modalContainer:            { width:'85%', maxWidth:400 },
-  modalContent:              { backgroundColor:'#FFFFFF', borderRadius:16, padding:24, elevation:8 },
-  modalTitle:                { fontSize:20, fontWeight:'700', color:'#3477eb', marginBottom:8, textAlign:'center' },
-  modalSubtitle:             { fontSize:14, color:'#64748B', marginBottom:20, textAlign:'center' },
-  modalOption:               { flexDirection:'row', alignItems:'center', backgroundColor:'#F8FAFC', borderRadius:12, padding:14, marginBottom:10, borderWidth:1, borderColor:'#E2E8F0', gap:12 },
-  modalOptionText:           { fontSize:15, fontWeight:'600', color:'#334155', flex:1 },
-  modalCancelButton:         { backgroundColor:'#FFFFFF', borderRadius:12, padding:14, marginTop:8, borderWidth:2, borderColor:'#E2E8F0', alignItems:'center' },
-  modalCancelText:           { fontSize:15, fontWeight:'600', color:'#64748B' },
   datePickerModalOverlay:    { flex:1, backgroundColor:'rgba(0,0,0,0.5)', justifyContent:'center', alignItems:'center' },
   datePickerModalContainer:  { width:'90%', maxWidth:400 },
   datePickerModalContent:    { backgroundColor:'#FFFFFF', borderRadius:16, padding:20, elevation:8 },

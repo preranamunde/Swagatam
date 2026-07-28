@@ -206,3 +206,103 @@ export const insertAppVisitor = async (payload) => {
   if (!result?.Success) throw new Error(result?.Message || 'Failed to submit appointment');
   return result;
 };
+/**
+ * Fetch the visitor's recent appointments (max 10, latest first).
+ * Only records whose registrationNo (VisRN) starts with "I" are returned by the API.
+ *
+ * @param {string|number} visRegNo - Vis_Reg_No obtained from Login API
+ * @returns {Promise<Array>} array of appointment records:
+ *   { registrationNo, officerName, visitDate, meetingTime, visitorAddress, purpose, status, statusLabel }
+ */
+export const fetchVisitorAppointments = async (visRegNo) => {
+  if (!visRegNo || String(visRegNo).trim() === '') {
+    throw new Error('Vis_Reg_No is required.');
+  }
+
+  const result = await callSwagatamAPI(
+    API_ENDPOINTS.GET_VISITOR_APPOINTMENTS,
+    { Vis_Reg_No: String(visRegNo) },
+  );
+
+  if (!result?.Success) {
+    throw new Error(result?.Message || 'Failed to fetch appointments');
+  }
+
+  return result.Data || [];
+};
+/**
+ * Fetch full visit details for a single VisRN (used when a user taps
+ * an appointment in the history / My Active Pass screen).
+ *
+ * @param {string|number} visRegNo - Vis_Reg_No of the logged-in visitor (must own the VisRN)
+ * @param {string} visRN - registrationNo of the specific appointment
+ * @returns {Promise<Array>} array with a single detailed record (or throws if not found)
+ */
+export const fetchVisitDetails = async (visRegNo, visRN) => {
+  if (!visRegNo || String(visRegNo).trim() === '') {
+    throw new Error('Vis_Reg_No is required.');
+  }
+  if (!visRN || String(visRN).trim() === '') {
+    throw new Error('VisRN is required.');
+  }
+
+  const result = await callSwagatamAPI(
+    API_ENDPOINTS.GET_VISIT_DETAILS,
+    { Vis_Reg_No: String(visRegNo), VisRN: String(visRN) },
+  );
+
+  if (!result?.Success) {
+    throw new Error(result?.Message || 'No matching visit request found for this visitor.');
+  }
+
+  return result.Data || [];
+};
+
+/**
+ * Cancel a visit request (URL 16 — CancelVisitRequest).
+ *
+ * Only VisRN values starting with "I" are supported by this service.
+ * Only requests currently Pending (P) or Approved (Y) can be cancelled, and
+ * only when the visit date is today/future and the pass has not already been
+ * printed with the visitor admitted (server enforces these rules; see the
+ * "Result" message returned on failure for the exact reason).
+ *
+ * @param {string|number} visRegNo - Vis_Reg_No of the logged-in visitor (must own the VisRN)
+ * @param {string} visRN - registrationNo (VisRN) of the appointment to cancel
+ * @param {string} cancelReason - mandatory free-text reason for cancellation
+ * @returns {Promise<string>} the server's confirmation/result message
+ */
+export const cancelVisitRequest = async (visRegNo, visRN, cancelReason) => {
+  if (!visRegNo || String(visRegNo).trim() === '') {
+    throw new Error('Vis_Reg_No is required.');
+  }
+  if (!visRN || String(visRN).trim() === '') {
+    throw new Error('VisRN is required.');
+  }
+  if (!cancelReason || String(cancelReason).trim() === '') {
+    throw new Error('Cancel reason is required.');
+  }
+  if (!String(visRN).startsWith('I')) {
+    throw new Error('This visit type cannot be cancelled from here.');
+  }
+
+  const result = await callSwagatamAPI(
+    API_ENDPOINTS.CANCEL_VISIT_REQUEST,
+    {
+      Vis_Reg_No:    String(visRegNo),
+      VisRN:         String(visRN),
+      Cancel_Reason: String(cancelReason),
+    },
+  );
+
+  // This endpoint responds as an array like [{"Result": "..."}], not {Success, Data}.
+  const record = Array.isArray(result) ? result[0] : result;
+  const message = record?.Result || '';
+
+  const isSuccess = /cancelled successfully/i.test(message);
+  if (!isSuccess) {
+    throw new Error(message || 'Cancellation failed.');
+  }
+
+  return message;
+};

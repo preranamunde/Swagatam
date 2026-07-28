@@ -163,3 +163,48 @@ export const loginVisitor = async (mobileNo, password) => {
   });
   return Array.isArray(result) ? result[0] : result;
 };
+
+/**
+ * Send (or resend) a login OTP to a registered mobile number.
+ * Same endpoint handles both "Send OTP" and "Resend OTP" — no separate resend API.
+ *
+ * Server-side rules the UI should account for:
+ *   - 3 minute cooldown between consecutive requests for the same number
+ *   - Max 5 OTP requests per calendar day per number (resets at midnight)
+ *   - Each new OTP invalidates any previously issued one
+ *
+ * Response shape (success):
+ *   [{ "Result": "OTP successfully sent to your registered mobile number." }]
+ * Response shape (error), still HTTP 200 — check the Result text:
+ *   [{ "Result": "Please wait 165 seconds before requesting another OTP." }]
+ *   [{ "Result": "This mobile number is not registered. Please register first." }]
+ *   [{ "Result": "You have reached the maximum OTP requests for today. Please try again tomorrow." }]
+ */
+export const sendLoginOtp = async (mobileNo) => {
+  const result = await callSwagatamAPI(API_ENDPOINTS.SEND_LOGIN_OTP, {
+    MobileNo: mobileNo,
+  });
+  return Array.isArray(result) ? result[0] : result;
+};
+
+/**
+ * Verify a login OTP for a mobile number.
+ *
+ * Server-side rules the UI should account for:
+ *   - OTP must be entered within 5 minutes of being sent
+ *   - Max 5 verification attempts per calendar day per number
+ *   - A successful verification does not count toward the attempt limit
+ *
+ * Response shape (success):
+ *   { Success: true, Message: "Login successful.",
+ *     Data: [{ Vis_Reg_No, Name, Mobile, Email }] }
+ * Response shape (error):
+ *   { Success: false, Message: "Invalid OTP entered.", Data: null }
+ */
+export const verifyLoginOtp = async (mobileNo, otp) => {
+  const result = await callSwagatamAPI(API_ENDPOINTS.VERIFY_LOGIN_OTP, {
+    MobileNo: mobileNo,
+    OTP: otp,
+  });
+  return Array.isArray(result) ? result[0] : result;
+};

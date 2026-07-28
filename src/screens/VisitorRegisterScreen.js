@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   Image, ScrollView, StatusBar, KeyboardAvoidingView,
@@ -18,6 +18,47 @@ const isValidPassword = (p) =>
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d]).{8,15}$/.test(p);
 
 // ─────────────────────────────────────────────
+// CAPTCHA — 100% client-side. Generated, rendered
+// with per-character distortion, and verified
+// entirely on-device. NEVER sent to any API.
+// ─────────────────────────────────────────────
+const CAPTCHA_LENGTH = 6;
+// Excludes visually-confusing characters (0/O, 1/I/l)
+const CAPTCHA_CHARS  = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+const CAPTCHA_COLORS = ['#0A2463', '#3477eb', '#059669', '#B91C1C', '#7C3AED', '#C2410C'];
+
+const generateCaptchaText = () => {
+  let out = '';
+  for (let i = 0; i < CAPTCHA_LENGTH; i++) {
+    out += CAPTCHA_CHARS[Math.floor(Math.random() * CAPTCHA_CHARS.length)];
+  }
+  return out;
+};
+
+// Per-character random distortion style, regenerated with the text so it
+// changes visually every time (rotation, color, size, vertical offset).
+const generateCaptchaCharStyles = (length) =>
+  Array.from({ length }, () => ({
+    transform: [
+      { rotate: `${Math.floor(Math.random() * 34) - 17}deg` },
+      { translateY: Math.floor(Math.random() * 10) - 5 },
+    ],
+    color: CAPTCHA_COLORS[Math.floor(Math.random() * CAPTCHA_COLORS.length)],
+    fontSize: 20 + Math.floor(Math.random() * 8),
+  }));
+
+// Random decorative noise lines rendered behind the captcha text to make
+// automated OCR/scraping harder.
+const generateCaptchaNoiseLines = (count = 5) =>
+  Array.from({ length: count }, () => ({
+    top: `${Math.floor(Math.random() * 80) + 5}%`,
+    left: `${Math.floor(Math.random() * 20)}%`,
+    width: `${Math.floor(Math.random() * 40) + 60}%`,
+    transform: [{ rotate: `${Math.floor(Math.random() * 40) - 20}deg` }],
+    backgroundColor: CAPTCHA_COLORS[Math.floor(Math.random() * CAPTCHA_COLORS.length)],
+  }));
+
+// ─────────────────────────────────────────────
 // COMPONENT
 // ─────────────────────────────────────────────
 const VisitorRegisterScreen = ({ navigation }) => {
@@ -30,6 +71,41 @@ const VisitorRegisterScreen = ({ navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showGenderDD, setShowGenderDD] = useState(false);
   const [loading,      setLoading]      = useState(false);
+
+  // ── CAPTCHA state (client-only, never transmitted) ──
+  const [captchaText,    setCaptchaText]    = useState('');
+  const [captchaInput,   setCaptchaInput]   = useState('');
+  const [captchaCharSty, setCaptchaCharSty] = useState([]);
+  const [captchaNoise,   setCaptchaNoise]   = useState([]);
+  const [captchaError,   setCaptchaError]   = useState('');
+  const [captchaVerified, setCaptchaVerified] = useState(false);
+
+  const refreshCaptcha = () => {
+    const text = generateCaptchaText();
+    setCaptchaText(text);
+    setCaptchaCharSty(generateCaptchaCharStyles(text.length));
+    setCaptchaNoise(generateCaptchaNoiseLines());
+    setCaptchaInput('');
+    setCaptchaVerified(false);
+    setCaptchaError('');
+  };
+
+  // Generate the first captcha on mount
+  useEffect(() => {
+    refreshCaptcha();
+  }, []);
+
+  const handleCaptchaInputChange = (val) => {
+    setCaptchaInput(val);
+    setCaptchaError('');
+    // Live-verify locally as the user types — nothing is ever sent anywhere
+    if (val.length === captchaText.length) {
+      setCaptchaVerified(val === captchaText);
+      if (val !== captchaText) setCaptchaError('Captcha does not match. Try again.');
+    } else {
+      setCaptchaVerified(false);
+    }
+  };
 
   const genderOptions = [
     { label: 'Male',   value: 'M' },
@@ -44,9 +120,21 @@ const VisitorRegisterScreen = ({ navigation }) => {
     if (!isValidMobile(mobileNo))
       return Alert.alert('Validation', 'Must be 10 digits and start with 6–9.');
 
+    // ── Captcha gate (frontend-only, not sent to API) ──
+    if (!captchaInput.trim()) {
+      setCaptchaError('Please enter the captcha shown below.');
+      return Alert.alert('Captcha Required', 'Please enter the captcha text shown below.');
+    }
+    if (captchaInput !== captchaText) {
+      setCaptchaError('Captcha does not match. Try again.');
+      Alert.alert('Incorrect Captcha', 'The captcha you entered does not match. A new one has been generated.');
+      refreshCaptcha();
+      return;
+    }
+
     setLoading(true);
     try {
-      const result  = await sendOTP(mobileNo);
+      const result  = await sendOTP(mobileNo); // 👈 captcha is NOT included in this call
       const message = result?.[0]?.Result ?? '';
       console.log('ACTUAL API MESSAGE:', message);
       console.log('FULL RESULT:', JSON.stringify(result));
@@ -79,6 +167,7 @@ const VisitorRegisterScreen = ({ navigation }) => {
       Alert.alert('Error', `Failed to send OTP:\n${e.message}`);
     } finally {
       setLoading(false);
+      refreshCaptcha(); // rotate captcha after every attempt (success or fail)
     }
   };
 
@@ -244,11 +333,73 @@ const VisitorRegisterScreen = ({ navigation }) => {
                 </Text>
               </View>
 
+              {/* ══════════ CAPTCHA (frontend-only) ══════════ */}
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>
+                  Security Check <Text style={styles.required}>*</Text>
+                </Text>
+                <View style={styles.captchaBox}>
+                  <View style={styles.captchaDisplay}>
+                    {captchaNoise.map((lineStyle, i) => (
+                      <View key={`noise-${i}`} style={[styles.captchaNoiseLine, lineStyle]} />
+                    ))}
+                    <View style={styles.captchaTextRow}>
+                      {captchaText.split('').map((ch, i) => (
+                        <Text
+                          key={`ch-${i}-${ch}`}
+                          style={[styles.captchaChar, captchaCharSty[i]]}
+                        >
+                          {ch}
+                        </Text>
+                      ))}
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.captchaRefreshButton}
+                    onPress={refreshCaptcha}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="refresh" size={22} color="#3477eb" />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={[
+                  styles.inputWrapper,
+                  captchaVerified && styles.captchaInputVerified,
+                  !!captchaError && styles.captchaInputError,
+                ]}>
+                  <View style={styles.inputIconContainer}>
+                    <Icon name="shield-check-outline" size={24} color="#0A2463" />
+                  </View>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Type the characters shown above"
+                    placeholderTextColor="#94A3B8"
+                    value={captchaInput}
+                    onChangeText={handleCaptchaInputChange}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    maxLength={CAPTCHA_LENGTH}
+                  />
+                  {captchaVerified && (
+                    <View style={styles.dropdownIconContainer}>
+                      <Ionicons name="checkmark-circle" size={22} color="#059669" />
+                    </View>
+                  )}
+                </View>
+                {!!captchaError && (
+                  <Text style={styles.captchaErrorText}>{captchaError}</Text>
+                )}
+                <Text style={styles.captchaHelperText}>
+                  Case-sensitive. This check happens on your device only and is never sent to the server.
+                </Text>
+              </View>
+
               <View style={styles.buttonContainer}>
                 <TouchableOpacity
-                  style={styles.primaryButton}
+                  style={[styles.primaryButton, !captchaVerified && styles.primaryButtonDisabled]}
                   onPress={handleSendOTP}
-                  disabled={loading}
+                  disabled={loading || !captchaVerified}
                   activeOpacity={0.8}
                 >
                   {loading
@@ -461,7 +612,7 @@ const VisitorRegisterScreen = ({ navigation }) => {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.cancelButton}
-                  onPress={() => setStep(1)}
+                  onPress={() => { setStep(1); refreshCaptcha(); }}
                   activeOpacity={0.8}
                 >
                   <Text style={styles.cancelButtonText}>← Change Mobile</Text>
@@ -562,8 +713,41 @@ const styles = StyleSheet.create({
   resendText:                 { fontSize: 14, color: '#3477eb', fontWeight: '600' },
   infoBox:                    { flexDirection: 'row', backgroundColor: '#E3F2FD', padding: 16, borderRadius: 12, marginBottom: 24, borderLeftWidth: 4, borderLeftColor: '#3B82F6', alignItems: 'flex-start' },
   infoText:                   { flex: 1, fontSize: 13, color: '#1E3A8A', lineHeight: 20, marginLeft: 10 },
+
+  // ── Captcha styles ──
+  captchaBox:                 { flexDirection: 'row', alignItems: 'stretch', marginBottom: 12, gap: 10 },
+  captchaDisplay:              {
+    flex: 1,
+    height: 64,
+    backgroundColor: '#EEF2FF',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#C7D2FE',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  captchaNoiseLine:            { position: 'absolute', height: 2, opacity: 0.35 },
+  captchaTextRow:               { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  captchaChar:                  { fontWeight: '800', marginHorizontal: 3 },
+  captchaRefreshButton:          {
+    width: 54,
+    height: 64,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  captchaInputVerified:         { borderColor: '#059669', borderWidth: 2 },
+  captchaInputError:            { borderColor: '#EF4444', borderWidth: 2 },
+  captchaErrorText:             { fontSize: 12, color: '#EF4444', marginTop: 6 },
+  captchaHelperText:            { fontSize: 12, color: '#94A3B8', marginTop: 6, lineHeight: 16 },
+
   buttonContainer:            { gap: 14 },
   primaryButton:              { backgroundColor: '#3477eb', paddingVertical: 16, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', elevation: 4 },
+  primaryButtonDisabled:      { backgroundColor: '#94A3B8', elevation: 0 },
   primaryButtonText:          { color: '#FFFFFF', fontSize: 17, fontWeight: '700' },
   buttonIcon:                 { marginLeft: 8 },
   cancelButton:               { backgroundColor: '#FFFFFF', paddingVertical: 16, borderRadius: 12, alignItems: 'center', borderWidth: 2, borderColor: '#E2E8F0' },

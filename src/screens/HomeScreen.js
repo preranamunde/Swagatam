@@ -340,12 +340,12 @@ const HomeScreen = ({ navigation }) => {
                 <MenuOption
                   iconName="phone-outline"
                   title="Contact Us"
-                  onPress={() => setDrawerVisible(false)}
+                  onPress={() => { setDrawerVisible(false); navigation.navigate('ContactUs'); }}
                 />
                 <MenuOption
                   iconName="help-circle-outline"
                   title="Help & Support"
-                  onPress={() => setDrawerVisible(false)}
+                  onPress={() => { setDrawerVisible(false); navigation.navigate('HelpSupport'); }}
                 />
               </View>
 
@@ -500,7 +500,11 @@ const HomeScreen = ({ navigation }) => {
               </View>
               <View style={styles.passImageBox}>
                 <View style={styles.passImageBackground}>
-                  <Icon name="card-account-details" size={42} color="#FFFFFF" />
+                  {/* Icon size matched to 50 (was 42) so this box reads the
+                      same visual weight/size as the other two Quick Actions
+                      boxes — the outer box was already a fixed 165x115, only
+                      the icon inside it was smaller. */}
+                  <Icon name="card-account-details" size={50} color="#FFFFFF" />
                   <View style={styles.appointmentPencilIcon}>
                     <Icon name="pencil" size={16} color="#FFFFFF" />
                   </View>
@@ -528,25 +532,28 @@ const HomeScreen = ({ navigation }) => {
               </View>
             </TouchableOpacity>
 
-            {/* Apply For Temporary Pass - RIGHT ALIGNED */}
-            <TouchableOpacity
-              style={styles.passRowRight}
-              onPress={() => navigation.navigate('TemporaryPass')}
-              activeOpacity={0.85}
-            >
-              <View style={styles.passTextCardRight}>
-                <Text style={styles.passLabelRight}>Apply For Temporary Pass</Text>
-                <Text style={styles.passDescriptionRight}>Get temporary access for walk-ins</Text>
-              </View>
-              <View style={styles.passImageBox}>
-                <View style={styles.passImageBackground}>
-                  <Icon name="badge-account-horizontal" size={36} color="#FFFFFF" />
-                  <View style={styles.tempBadge}>
-                    <Text style={styles.tempBadgeText}>TEMP</Text>
-                  </View>
-                </View>
-              </View>
-            </TouchableOpacity>
+          {/* Apply For Temporary Pass - RIGHT ALIGNED */}
+{/* Hidden from UI — code kept for later re-enable */}
+{false && (
+  <TouchableOpacity
+    style={styles.passRowRight}
+    onPress={() => navigation.navigate('TemporaryPass')}
+    activeOpacity={0.85}
+  >
+    <View style={styles.passTextCardRight}>
+      <Text style={styles.passLabelRight}>Apply For Temporary Pass</Text>
+      <Text style={styles.passDescriptionRight}>Get temporary access for walk-ins</Text>
+    </View>
+    <View style={styles.passImageBox}>
+      <View style={styles.passImageBackground}>
+        <Icon name="badge-account-horizontal" size={36} color="#FFFFFF" />
+        <View style={styles.tempBadge}>
+          <Text style={styles.tempBadgeText}>TEMP</Text>
+        </View>
+      </View>
+    </View>
+  </TouchableOpacity>
+)}
           </View>
         </View>
 
@@ -1066,7 +1073,6 @@ const styles = StyleSheet.create({
   },
   passManagementContainer: {
     gap: 24,
-    paddingTop: -50,
   },
   passRowLeft: {
     flexDirection: 'row',
@@ -1081,7 +1087,10 @@ const styles = StyleSheet.create({
   },
   passImageBox: {
     width: 165,
-    height: 115,
+    height: 130,
+    // Locks the box to this exact size no matter what row/flex context it
+    // sits in, so it can never get squeezed smaller than its siblings.
+    flexShrink: 0,
   },
   passImageBackground: {
     width: '100%',
@@ -1161,6 +1170,7 @@ const styles = StyleSheet.create({
   },
   passTextCard: {
     flex: 1,
+    height: 130,
     backgroundColor: '#FFFFFF',
     paddingVertical: 16,
     paddingHorizontal: 14,
@@ -1170,11 +1180,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 6,
     elevation: 3,
-    minHeight: 85,
     justifyContent: 'center',
   },
   passTextCardRight: {
     flex: 1,
+    height: 130,
     backgroundColor: '#FFFFFF',
     paddingVertical: 16,
     paddingHorizontal: 14,
@@ -1184,7 +1194,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 6,
     elevation: 3,
-    minHeight: 85,
     justifyContent: 'center',
     alignItems: 'flex-end',
   },

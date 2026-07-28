@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import SplashScreen from './src/screens/SplashScreen';
 import RoleSelectionScreen from './src/screens/RoleSelectionScreen';
 import VisitorLoginScreen from './src/screens/VisitorLoginScreen';
+import VisitorLoginOtpScreen from './src/screens/VisitorLoginOtpScreen';
 import OfficerLoginScreen from './src/screens/OfficerLoginScreen';
 import VisitorRegisterScreen from './src/screens/VisitorRegisterScreen';
 import { enableScreens } from 'react-native-screens';
@@ -34,7 +36,11 @@ import VisitorDetailScreen from './src/screens/VisitorDetailScreen';
 import VisitorDetailsDailyPass from './src/screens/VisitorDetailsDailyPass';
 import ForgotPasswordVisitorScreen from './src/screens/ForgotPasswordVisitorScreen';
 import ForgotPasswordOfficerScreen from './src/screens/ForgotPasswordOfficerScreen';
-
+import ContactUsScreen from './src/screens/ContactUsScreen';
+// ── NEW: MPIN screens ──────────────────────────────────────────────────────
+import MpinSetupScreen from './src/screens/MpinSetupScreen';
+import MpinLoginScreen from './src/screens/MpinLoginScreen';
+import HelpSupportScreen from './src/screens/HelpSupportScreen';
 
 enableScreens();
 
@@ -42,12 +48,53 @@ const Stack = createNativeStackNavigator();
 
 function App() {
   const [showSplash, setShowSplash] = useState(true);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [initialRoute, setInitialRoute] = useState('RoleSelection');
+
+  // Runs once, in parallel with the splash timer, to decide where to land.
+  useEffect(() => {
+    checkLaunchState();
+  }, []);
+
+  const checkLaunchState = async () => {
+    try {
+      const loginSession = await AsyncStorage.getItem('loginSession');
+      const storedMpin = await AsyncStorage.getItem('userMpin');
+
+      if (loginSession) {
+        const session = JSON.parse(loginSession);
+
+        if (session?.Vis_Reg_No) {
+          // Already logged in before (Vis_Reg_No present).
+          if (storedMpin) {
+            // MPIN already created -> ask for it instead of full login.
+            setInitialRoute('MpinLogin');
+          } else {
+            // Edge case: session exists but no PIN was ever saved -> set one up.
+            setInitialRoute('MpinSetup');
+          }
+        } else {
+          setInitialRoute('RoleSelection');
+        }
+      } else {
+        // First time launch / no saved session -> normal login flow.
+        setInitialRoute('RoleSelection');
+      }
+    } catch (e) {
+      console.log('Error checking launch state:', e.message);
+      setInitialRoute('RoleSelection');
+    } finally {
+      setIsCheckingAuth(false);
+    }
+  };
 
   const handleSplashFinish = () => {
     setShowSplash(false);
   };
 
-  if (showSplash) {
+  // Keep showing splash until BOTH the splash timer finishes AND the
+  // AsyncStorage check completes, so we never flash the wrong screen.
+  if (showSplash || isCheckingAuth) {
     return <SplashScreen onFinish={handleSplashFinish} />;
   }
 
@@ -56,114 +103,129 @@ function App() {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <NavigationContainer>
         <Stack.Navigator
-          initialRouteName="RoleSelection"
+          initialRouteName={initialRoute}
           screenOptions={{
             headerShown: false,
           }}
         >
-          <Stack.Screen 
-            name="RoleSelection" 
-            component={RoleSelectionScreen} 
+          <Stack.Screen
+            name="RoleSelection"
+            component={RoleSelectionScreen}
           />
-          <Stack.Screen 
-            name="VisitorLogin" 
-            component={VisitorLoginScreen} 
+          <Stack.Screen
+            name="VisitorLogin"
+            component={VisitorLoginScreen}
           />
-          <Stack.Screen 
-            name="OfficerLogin" 
-            component={OfficerLoginScreen} 
+          <Stack.Screen
+            name="VisitorLoginOtp"
+            component={VisitorLoginOtpScreen}
           />
-          <Stack.Screen 
-            name="VisitorRegister" 
-            component={VisitorRegisterScreen} 
+          <Stack.Screen
+            name="OfficerLogin"
+            component={OfficerLoginScreen}
           />
-          <Stack.Screen 
-            name="PersonalDetails" 
+          <Stack.Screen
+            name="VisitorRegister"
+            component={VisitorRegisterScreen}
+          />
+          {/* ── NEW: MPIN screens ── */}
+          <Stack.Screen
+            name="MpinSetup"
+            component={MpinSetupScreen}
+          />
+          <Stack.Screen
+            name="MpinLogin"
+            component={MpinLoginScreen}
+          />
+          <Stack.Screen
+            name="PersonalDetails"
             component={PersonalDetailsScreen}
           />
-          <Stack.Screen 
-            name="CreateAppointment" 
+          <Stack.Screen
+            name="CreateAppointment"
             component={CreateAppointmentScreen}
           />
           <Stack.Screen name="Homes" component={HomeScreen} />
-          <Stack.Screen 
-            name="Dashboards" 
+          <Stack.Screen
+            name="Dashboards"
             component={DashboardScreen}
           />
-          <Stack.Screen 
-            name="TemporaryPass" 
+          <Stack.Screen
+            name="TemporaryPass"
             component={TemporaryPassScreen}
           />
-          <Stack.Screen 
-            name="TemporaryPassInstructions" 
+          <Stack.Screen
+            name="TemporaryPassInstructions"
             component={TemporaryPassInstructionsScreen}
           />
-          <Stack.Screen 
-            name="ActiveTempPass" 
+          <Stack.Screen
+            name="ActiveTempPass"
             component={ActiveTempPassScreen}
           />
-          <Stack.Screen 
-            name="AboutSwagatam" 
+          <Stack.Screen
+            name="AboutSwagatam"
             component={AboutSwagatamScreen}
           />
-          <Stack.Screen 
-            name="TodaysPass" 
+          <Stack.Screen
+            name="TodaysPass"
             component={TodaysPassScreen}
           />
           <Stack.Screen name="MyActivePasses" component={MyActivePassScreen} />
-          <Stack.Screen 
-            name="TodayAppointmentDetail" 
+          <Stack.Screen
+            name="TodayAppointmentDetail"
             component={TodayAppointmentDetailScreen}
             options={{
               animation: 'slide_from_right',
               presentation: 'card',
             }}
           />
-          <Stack.Screen 
-  name="OfficerHome" 
-  component={OfficerHomeScreen} 
-  options={{ headerShown: false }}
-/>
-<Stack.Screen name="Home" component={HomeRouter} />
-        <Stack.Screen name="Dashboard" component={DashboardRouter} />
-        <Stack.Screen 
-  name="CreateVisitorVisit" 
-  component={CreateVisitorVisitScreen} 
-  options={{ headerShown: false }}
-/>
-<Stack.Screen 
-  name="MyProfile" 
-  component={MyProfileScreen} 
-  options={{ headerShown: false }}
-/>
-<Stack.Screen name="AppointmentsScreen" component={AppointmentsScreen} options={{ headerShown: false }} />
-<Stack.Screen name="ApproveAppointments" component={ApproveAppointmentsScreen} />
-<Stack.Screen 
-  name="VisitorTemporaryPassScreen" 
-  component={VisitorTemporaryPassScreen} 
-  options={{ headerShown: false }} 
-/>
-<Stack.Screen 
-  name="ApprovedTempPassScreen" 
-  component={ApprovedTempPassScreen} 
-  options={{ headerShown: false }} 
-/>
-<Stack.Screen 
-  name="TemporaryPassDetail" 
-  component={TemporaryPassDetailScreen}
-/>
-<Stack.Screen 
-  name="VisitorDetailScreen" 
-  component={VisitorDetailScreen} 
-  options={{ headerShown: false }}
-/>
-<Stack.Screen 
-  name="VisitorDailyPassDetail" 
-  component={VisitorDetailsDailyPass} 
-  options={{ headerShown: false }}
-/>
-<Stack.Screen name="ForgotPasswordVisitor" component={ForgotPasswordVisitorScreen} />
-<Stack.Screen name="ForgotPasswordOfficer" component={ForgotPasswordOfficerScreen} />
+          <Stack.Screen
+            name="OfficerHome"
+            component={OfficerHomeScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen name="Home" component={HomeRouter} />
+          <Stack.Screen name="Dashboard" component={DashboardRouter} />
+          <Stack.Screen
+            name="CreateVisitorVisit"
+            component={CreateVisitorVisitScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="MyProfile"
+            component={MyProfileScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen name="AppointmentsScreen" component={AppointmentsScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="ApproveAppointments" component={ApproveAppointmentsScreen} />
+          <Stack.Screen
+            name="VisitorTemporaryPassScreen"
+            component={VisitorTemporaryPassScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="ApprovedTempPassScreen"
+            component={ApprovedTempPassScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="TemporaryPassDetail"
+            component={TemporaryPassDetailScreen}
+          />
+          <Stack.Screen
+            name="VisitorDetailScreen"
+            component={VisitorDetailScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="VisitorDailyPassDetail"
+            component={VisitorDetailsDailyPass}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen name="ContactUs" component={ContactUsScreen}/>
+          <Stack.Screen name="HelpSupport" component={HelpSupportScreen}/>
+          <Stack.Screen name="ForgotPasswordVisitor" component={ForgotPasswordVisitorScreen} />
+          <Stack.Screen name="ForgotPasswordOfficer" component={ForgotPasswordOfficerScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
